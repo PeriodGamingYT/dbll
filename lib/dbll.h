@@ -32,6 +32,7 @@
 		int header_size;
 	} dbll_header_t;
 
+	const uint32_t dbll_header_magic = 'dbll';
 	int dbll_header_valid(dbll_header_t *);
 	int dbll_header_load(dbll_header_t *, dbll_file_t *);
 	typedef struct {
