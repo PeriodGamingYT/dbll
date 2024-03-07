@@ -2,6 +2,15 @@
 #include <dbll.h>
 
 int test_0() {
+	dbll_state_t state = { 0 };
+	if(dbll_state_load(&state, "db/test-0.dbll") < 0) {
+		return TEST_FAIL;
+	}
+
+	if(dbll_state_unload(&state) < 0) {
+		return TEST_FAIL;
+	}
+
 	return TEST_PASS;
 }
 

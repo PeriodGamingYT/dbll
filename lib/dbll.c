@@ -68,12 +68,10 @@ int dbll_file_load(dbll_file_t *file, const char *path) {
 	}
 }
 
-int dbll_file_unload(dbll_file_t **ref_file) {
-	if(ref_file == NULL || *ref_file == NULL) {
+int dbll_file_unload(dbll_file_t *file) {
+	if(file == NULL) {
 		return DBLL_ERR;
 	}
-
-	dbll_file_t *file = *ref_file;
 
 	// if we can't close/unmap it, it was never open anyway
 	// so don't check for error
@@ -90,6 +88,26 @@ int dbll_file_unload(dbll_file_t **ref_file) {
 	file->cursor = 0;
 	file->desc = 0;
 	return DBLL_OK;
+}
+
+static const uint8_t file_boilerplate[] = {
+	'd', 'b', 'l', 'l', 1, 1, 1
+};
+
+int dbll_file_make(dbll_file_t *file, const char *path) {
+	if(!dbll_file_valid(file) || path == NULL) {
+		return DBLL_ERR;
+	}
+	
+	// can't make already existing file
+	if(access(path, F_OK) < 0) {
+		return DBLL_ERR;
+	}
+	
+	int desc = open(path, O_RDWR | O_CREAT);
+	write(desc, file_boilerplate, sizeof(file_boilerplate));
+	close(desc);
+	return dbll_file_load(file, path);
 }
 
 int dbll_header_valid(dbll_header_t *header) {
@@ -130,32 +148,25 @@ int dbll_header_load(dbll_header_t *header, dbll_file_t *file) {
 	return DBLL_OK;
 }
 
-int dbll_mem_to_ptr(
-	dbll_state_t *state, 
-	uint8_t *mem_start,
-	dbll_ptr_t ptr
-) {
-	if(!dbll_state_valid(state) || mem == NULL) {
+int dbll_header_unload(dbll_header_t *header) {
+	if(!dbll_header_valid(header)) {
 		return DBLL_ERR;
 	}
 
-	memcpy(
-		ptr,
-		mem_start,
-		state->header.ptr_size
-	);
-
+	memset(header->magic, 0, DBLL_MAGIC_SIZE);
+	header->ptr_size = 0;
+	header->data_size = 0;
+	header->empty_slot_ptr = 0;
+	header->list_size = 0;
+	header->header_size = 0;
 	return DBLL_OK;
 }
 
-uint8_t *dbll_ptr_to_mem(dbll_state_t *state, dbll_ptr_t ptr) {
-	if(!dbll_state_valid(state)) {
-			return NULL;
-	}
-
-	dbll_header_t *header = &state->header;
-	int offset = header->header_size - 1;
-	return &file->mem[offset + (ptr * header->list_size)];
+int dbll_list_valid(dbll_list_t *list) {
+	return (
+		list != NULL &&
+		list->data_size >= 0
+	);
 }
 
 int dbll_list_load(
@@ -163,7 +174,7 @@ int dbll_list_load(
 	dbll_state_t *state, 
 	dbll_ptr_t list_ptr
 ) {
-	if(!dbll_state_valid(state) || list == NULL) {
+	if(!dbll_state_valid(state) || !dbll_list_valid(list)) {
 		return DBLL_ERR;
 	}
 
@@ -171,20 +182,83 @@ int dbll_list_load(
 	if(list_file_ptr == NULL) {
 		return DBLL_ERR;
 	}
+	
+	int ptr_size = state->header.ptr_size;
 
-	// no error check because everythings valid
-	dbll_mem_to_ptr(state, list_file_ptr, list.head_ptr);
-	dbll_mem_to_ptr(state, &list_file_ptr[ptr_size], list.tail_ptr);
+	// no error check because everything is valid
+	dbll_mem_to_ptr(state, list_file_ptr, &list->head_ptr);
+	dbll_mem_to_ptr(state, &list_file_ptr[ptr_size], &list->tail_ptr);
 	dbll_mem_to_ptr(
 		state, 
 		&list_file_ptr[ptr_size * 2], 
-		list.data_ptr
+		&list->data_ptr
 	);
 
 	memcpy(
-		list->data_size,
+		(char *)(&list->data_size),
 		&list_file_ptr[ptr_size * 3],
 		state->header.data_size
+	);
+	
+	return DBLL_OK;
+}
+
+int dbll_list_unload(dbll_list_t *list) {
+	if(list == NULL) {
+		return DBLL_ERR;
+	}
+	
+	list->head_ptr = DBLL_NULL;
+	list->tail_ptr = DBLL_NULL;
+	list->data_ptr = DBLL_NULL;
+	list->data_size = 0;
+	return DBLL_OK;
+}
+
+int dbll_list_go(dbll_list_t *list, dbll_state_t *state, list_go_e go) {
+	if(
+		!dbll_list_valid(list) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_ERR;
+	}
+	
+	dbll_ptr_t go_ptr = 0;
+	switch(go) {
+		case DBLL_GO_HEAD: {
+			go_ptr = list->head_ptr;
+			break;
+		}
+		
+		case DBLL_GO_TAIL: {
+			go_ptr = list->tail_ptr;
+			break;
+		}
+		
+		default: {
+			return DBLL_ERR;
+		}
+	}
+	
+	return dbll_list_load(list, state, go_ptr);
+}
+
+uint8_t *dbll_list_data(dbll_list_t *list, dbll_state_t *state) {
+	if(
+		!dbll_list_valid(list) ||
+		!dbll_state_valid(state)
+	) {
+		return NULL;
+	}
+	
+	return dbll_ptr_to_mem(state, list->data_ptr);
+}
+
+int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
+	return (
+		empty_slot != NULL &&
+		empty_slot->is_next_empty >= 0 &&
+		empty_slot->is_next_empty <= 1
 	);
 }
 
@@ -193,7 +267,10 @@ int dbll_empty_slot_load(
 	dbll_state_t *state,
 	dbll_ptr_t list_ptr
 ) {
-	if(!dbll_state_valid(state) || empty_slot == NULL) {
+	if(
+		!dbll_state_valid(state) || 
+		!dbll_empty_slot_valid(empty_slot)
+	) {
 		return DBLL_ERR;
 	}
 
@@ -201,19 +278,65 @@ int dbll_empty_slot_load(
 	if(list_file_ptr == NULL) {
 		return DBLL_ERR;
 	}
+	
+	int ptr_size = state->header.ptr_size;
 
-	// no error check because everythings valid
-	dbll_mem_to_ptr(state, list_file_ptr, empty_slot->prev_ptr);
-	dbll_mem_to_ptr(state, &list_file_ptr[ptr_size], empty_slot->next_ptr);
-	dbll_mem_to_ptr(state, &list_file_ptr[ptr_size * 2], empty_slot->empty_ptr);
+	// no error check because everything is valid
+	dbll_mem_to_ptr(
+		state, 
+		list_file_ptr, 
+		&empty_slot->prev_ptr
+	);
+	
+	dbll_mem_to_ptr(
+		state, 
+		&list_file_ptr[ptr_size], 
+		&empty_slot->next_ptr
+	);
+	
+	dbll_mem_to_ptr(
+		state, 
+		&list_file_ptr[ptr_size * 2], 
+		&empty_slot->empty_ptr
+	);
+	
 	empty_slot->is_next_empty = list_file_ptr[(ptr_size * 2) + 1];
 	return DBLL_OK;
 }
 
+int dbll_empty_slot_unload(dbll_empty_slot_t *slot) {
+	if(slot == NULL) {
+		return DBLL_ERR;
+	}
+	
+	slot->prev_ptr = DBLL_NULL;
+	slot->next_ptr = DBLL_NULL;
+	slot->empty_ptr = DBLL_NULL;
+	slot->is_next_empty = 0;
+	return DBLL_OK;
+}
+
+int dbll_state_valid(dbll_state_t *state) {
+	return (
+		state != NULL &&
+		dbll_file_valid(&state->file) &&
+		dbll_header_valid(&state->header) &&
+		dbll_empty_slot_valid(&state->last_empty) &&
+		dbll_list_valid(&state->root_list)
+	);
+	
+	// gcc gives bad warning
+	return 1;
+}
+
 int dbll_state_load(dbll_state_t *state, const char *path) {
+	if(state == NULL || path == NULL) {
+		return DBLL_ERR;
+	}
+	
 	if(
 		dbll_file_load(&state->file, path) < 0 && 
-		dbll_file_make(&state->file, path)
+		dbll_file_make(&state->file, path) < 0
 	) {
 		goto error;
 	}
@@ -228,4 +351,45 @@ int dbll_state_load(dbll_state_t *state, const char *path) {
 		memset(state, 0, sizeof(dbll_state_t));
 		return DBLL_ERR;
 	}
+}
+
+int dbll_state_unload(dbll_state_t *state) {
+	if(state == NULL) {
+		return DBLL_ERR;
+	}
+
+	dbll_file_unload(&state->file);
+	dbll_header_unload(&state->header);
+	dbll_empty_slot_unload(&state->last_empty);
+	dbll_list_unload(&state->root_list);
+	return DBLL_OK;
+}
+
+int dbll_mem_to_ptr(
+	dbll_state_t *state, 
+	uint8_t *mem_start,
+	dbll_ptr_t *ptr
+) {
+	if(!dbll_state_valid(state) || mem_start == NULL) {
+		return DBLL_ERR;
+	}
+
+	memcpy(
+		(uint8_t *)(ptr),
+		mem_start,
+		state->header.ptr_size
+	);
+
+	return DBLL_OK;
+}
+
+uint8_t *dbll_ptr_to_mem(dbll_state_t *state, dbll_ptr_t ptr) {
+	if(!dbll_state_valid(state)) {
+		return NULL;
+	}
+
+	dbll_file_t *file = &state->file;
+	dbll_header_t *header = &state->header;
+	int offset = header->header_size - 1;
+	return &file->mem[offset + (ptr * header->list_size)];
 }
