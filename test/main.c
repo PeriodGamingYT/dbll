@@ -24,5 +24,5 @@ int main() {
 		ARRAY_SIZE(dbll_test_funcs)
 	);
 
-	return result;
+	return result == TEST_FAIL;
 }

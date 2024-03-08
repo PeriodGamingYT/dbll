@@ -9,6 +9,8 @@
 static size_t file_size(int desc) {
 	struct stat file_stat = { 0 };
 	if(fstat(desc, &file_stat) < 0) {
+		printf("file_size couldn't get stat!\n");
+		perror("errno");
 		return DBLL_ERR;
 	}
 
@@ -32,11 +34,14 @@ int dbll_file_load(dbll_file_t *file, const char *path) {
 
 	file->desc = open(path, O_RDWR);
 	if(file->desc < 0) {
+		printf("couldn't open file!\n");
+		perror("errno");
 		goto error;
 	}
 
 	file->size = file_size(file->desc);
 	if(file->size < 0) {
+		printf("couldn't get file stat!\n");
 		goto error;
 	}
 
@@ -51,6 +56,8 @@ int dbll_file_load(dbll_file_t *file, const char *path) {
 	));
 
 	if(file->mem == (uint8_t *)(-1)) {
+		printf("couldn't mmap file!\n");
+		perror("errno");
 		goto error;
 	}
 
@@ -105,9 +112,46 @@ int dbll_file_make(dbll_file_t *file, const char *path) {
 	}
 	
 	int desc = open(path, O_RDWR | O_CREAT);
-	write(desc, file_boilerplate, sizeof(file_boilerplate));
-	close(desc);
+	if(desc < 0) {
+		printf("couldn't open or create file!\n");
+		perror("errno");
+		return DBLL_ERR;
+	}
+	
+	if(
+		write(
+			desc, 
+			file_boilerplate, 
+			sizeof(file_boilerplate)
+		) < 0
+	) {
+		printf("couldn't write to file!\n");
+		perror("errno");
+		return DBLL_ERR;
+	}
+	
+	if(close(desc) < 0) {
+		printf("coudn't close file!\n");
+		perror("errno");
+		return DBLL_ERR;
+	}
+	
 	return dbll_file_load(file, path);
+}
+
+// the magic number spells out "dbll" but in decimal form
+static const uint32_t dbll_header_magic = 1819042404;
+void dbll_header_print(dbll_header_t *header) {
+	if(header == NULL) {
+		printf("header is null\n");
+		return;
+	}
+	
+	uint32_t magic_int = *((uint32_t *)(header->magic));
+	printf("header magic (%d) and dbll magic (%d)\n", magic_int, dbll_header_magic);
+	printf("ptr size (%d)\n", header->ptr_size);
+	printf("data size (%d)\n", header->data_size);
+	printf("header size (%d)\n", header->header_size);
 }
 
 int dbll_header_valid(dbll_header_t *header) {
@@ -150,6 +194,8 @@ int dbll_header_load(dbll_header_t *header, dbll_file_t *file) {
 
 int dbll_header_unload(dbll_header_t *header) {
 	if(!dbll_header_valid(header)) {
+		printf("header couldn't be validated\n");
+		dbll_header_print(header);
 		return DBLL_ERR;
 	}
 
@@ -175,11 +221,13 @@ int dbll_list_load(
 	dbll_ptr_t list_ptr
 ) {
 	if(!dbll_state_valid(state) || !dbll_list_valid(list)) {
+		printf("state and/or list isn't valid\n");
 		return DBLL_ERR;
 	}
 
 	uint8_t *list_file_ptr = dbll_ptr_to_mem(state, list_ptr);
 	if(list_file_ptr == NULL) {
+		printf("list memory couldn't be accessed!\n");
 		return DBLL_ERR;
 	}
 	
@@ -205,6 +253,7 @@ int dbll_list_load(
 
 int dbll_list_unload(dbll_list_t *list) {
 	if(list == NULL) {
+		printf("list was null!\n");
 		return DBLL_ERR;
 	}
 	

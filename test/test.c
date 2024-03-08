@@ -1,6 +1,6 @@
 #include <test.h>
 
-int test_funcs(test_func_f *funcs, int size) {
+int test_funcs(const test_func_f *funcs, int size) {
 	if(funcs == NULL || size < 0) {
 		return TEST_FAIL;
 	}
@@ -12,7 +12,9 @@ int test_funcs(test_func_f *funcs, int size) {
 			"%s test %d!\n", 
 			current_test == TEST_FAIL 
 				? "failed" 
-				: "passed"
+				: "passed",
+
+			i
 		);
 
 		if(current_test == TEST_FAIL) {

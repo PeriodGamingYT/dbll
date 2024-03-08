@@ -35,8 +35,6 @@
 		int header_size;
 	} dbll_header_t;
 
-	// the magic number spells out "dbll" but in decimal form
-	const uint32_t dbll_header_magic = 1684171884;
 	int dbll_header_valid(dbll_header_t *);
 	int dbll_header_load(dbll_header_t *, dbll_file_t *);
 	typedef struct {
