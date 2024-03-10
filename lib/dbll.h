@@ -105,6 +105,11 @@
 	);
 
 	int dbll_empty_slot_unload(dbll_empty_slot_t *);
+	int dbll_empty_slot_find(
+		dbll_empty_slot_t *, 
+		struct dbll_state_s *
+	);
+	
 	int dbll_empty_slot_write(
 		dbll_empty_slot_t *, 
 		struct dbll_state_s *
@@ -157,6 +162,7 @@
 	int dbll_state_valid(dbll_state_t *);
 	int dbll_state_load(dbll_state_t *, const char *);
 	int dbll_state_unload(dbll_state_t *);
+	dbll_ptr_t dbll_state_empty_find(dbll_state_t *);
 	dbll_ptr_t dbll_state_alloc(dbll_state_t *);
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);
 	int dbll_mem_ptr_copy(

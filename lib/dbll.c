@@ -400,7 +400,32 @@ int dbll_empty_slot_write(
 		return DBLL_ERR;
 	}
 
-	// XXX: TODO
+	uint8_t *mem = dbll_ptr_to_mem(state, slot->this_ptr);
+	int ptr_size = state->header.ptr_size;
+	if(
+		mem == NULL ||
+		dbll_ptr_mem_copy(
+			state,
+			slot->next_ptr,
+			mem
+		) < 0 ||
+
+		dbll_ptr_mem_copy(
+			state,
+			slot->prev_ptr,
+			mem + ptr_size
+		) < 0 ||
+
+		dbll_ptr_mem_copy(
+			state,
+			slot->this_ptr,
+			mem + (ptr_size * 2)
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	mem[ptr_size * 3] = slot->is_next_empty;
 	return DBLL_OK;
 }
 
@@ -577,18 +602,51 @@ int dbll_state_unload(dbll_state_t *state) {
 	return DBLL_OK;
 }
 
+dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
+	if(
+		!dbll_state_valid(state) ||
+		state->last_empty.next_ptr != DBLL_NULL
+	) {
+		return DBLL_NULL;
+	}
 
+	dbll_ptr_t new_empty = state->last_empty.prev_ptr;
+	if(new_empty == DBLL_NULL) {
+		dbll_empty_slot_unload(&state->last_empty);
+		return new_empty;
+	}
+
+	dbll_ptr_t current = state->last_empty.this_ptr;
+	if(
+		dbll_empty_slot_load(
+			&state->last_empty,
+			state,
+			new_empty
+		) < 0
+	) {
+		return DBLL_NULL;
+	}
+
+	state->last_empty.next_ptr = DBLL_NULL;
+	state->last_empty.is_next_empty = 1;
+	if(
+		dbll_empty_slot_write(
+			&state->last_empty, 
+			state
+		) < 0
+	) {
+		return DBLL_NULL;
+	}
+
+	return current;
+}
 
 dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
 		return DBLL_NULL;
 	}
 
-	dbll_ptr_t empty_slot = dbll_empty_slot_find(
-		state, 
-		&state->last_empty
-	);
-
+	dbll_ptr_t empty_slot = dbll_state_empty_find(state);
 	if(empty_slot != DBLL_NULL) {
 		return empty_slot;
 	}
@@ -617,7 +675,15 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 	}
 
 	dbll_empty_slot_t *prev_slot = &state->last_empty;
-	slot.prev_ptr = prev_slot->
+	slot.prev_ptr = prev_slot->this_ptr;
+	slot.next_ptr = DBLL_NULL;
+	slot.this_ptr = ptr;
+	slot.is_next_empty = 1;
+	prev_slot->next_ptr = slot.this_ptr;
+	prev_slot->is_next_empty = 0;
+	dbll_empty_slot_write(prev_slot, state);
+	dbll_empty_slot_write(&slot, state);
+	state->last_empty = slot;
 	return DBLL_OK;
 }
 
@@ -641,6 +707,28 @@ int dbll_mem_ptr_copy(
 		state->header.ptr_size
 	);
 
+	return DBLL_OK;
+}
+
+int dbll_ptr_mem_copy(
+	dbll_state_t *state,
+	dbll_ptr_t ptr,
+	uint8_t *mem
+) {
+	if(
+		!dbll_state_valid(state) ||
+		ptr == DBLL_NULL ||
+		mem == NULL
+	) {
+		return DBLL_ERR;
+	}
+
+	memcpy(
+		mem,
+		(uint8_t *)(&ptr),
+		state->header.header_size
+	);
+	
 	return DBLL_OK;
 }
 
