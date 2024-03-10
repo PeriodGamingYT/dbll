@@ -1,2 +1,5 @@
 *.o
 main
+obj
+obj/
+obj/*
