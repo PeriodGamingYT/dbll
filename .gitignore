@@ -3,3 +3,6 @@ main
 obj
 obj/
 obj/*
+lib/debug.h
+test/db/*.dbll
+!test/db/test-0.dbll

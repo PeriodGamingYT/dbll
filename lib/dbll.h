@@ -162,6 +162,12 @@
 	int dbll_state_valid(dbll_state_t *);
 	int dbll_state_load(dbll_state_t *, const char *);
 	int dbll_state_unload(dbll_state_t *);
+	int dbll_state_make(dbll_state_t *, const char *);
+	int dbll_state_make_replace(
+		dbll_state_t *,
+		const char *
+	);
+	
 	dbll_ptr_t dbll_state_empty_find(dbll_state_t *);
 	dbll_ptr_t dbll_state_alloc(dbll_state_t *);
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);

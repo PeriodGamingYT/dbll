@@ -1,12 +1,42 @@
+#include "debug.h"
 #include <dbll.h>
-
-#define _GNU_SOURCE
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+// because we are debugging, only use DBLL_ERR for
+// "return DBLL_ERR;" because it's not intended for anything otherwise.
+// to see if something errored, do "if(function(...) < 0)", as that
+// pattern is used in this library
+// DBLL_NULL_ERR is like DBLL_ERR except you only use DBLL_NULL_ERR
+// for returning a dbll null and DBLL_NULL for everything else, also
+// DBLL_NULL_ERR can only be used inside the library
+#define DBLL_NULL_ERR DBLL_NULL
+#define DBLL_LOG(...)
+#ifdef DBLL_DEBUG
+	static int err_log(int line) {
+		printf("returned error at line %d!\n", line);
+		return DBLL_ERR;
+	}
+
+	static dbll_ptr_t null_log(int line) {
+		printf("returned null at line %d\n", line);
+		return DBLL_NULL;
+	}
+
+	#undef DBLL_NULL_ERR
+	#undef DBLL_ERR
+	#undef DBLL_LOG
+	#define DBLL_LOG(...) \
+		printf("\"" __VA_ARGS__); \
+		printf("\" on line %d\n", __LINE__)
+	
+	#define DBLL_ERR err_log(__LINE__)
+	#define DBLL_NULL_ERR null_log(__LINE__)
+#endif
 
 static size_t file_size(int desc) {
 	struct stat file_stat = { 0 };
@@ -88,12 +118,12 @@ static const uint8_t file_boilerplate[] = {
 };
 
 int dbll_file_make(dbll_file_t *file, const char *path) {
-	if(!dbll_file_valid(file) || path == NULL) {
+	if(file == NULL || path == NULL) {
 		return DBLL_ERR;
 	}
 	
 	// can't make already existing file
-	if(access(path, F_OK) < 0) {
+	if(access(path, F_OK) >= 0) {
 		return DBLL_ERR;
 	}
 	
@@ -121,6 +151,20 @@ int dbll_file_make(dbll_file_t *file, const char *path) {
 	}
 	
 	return dbll_file_load(file, path);
+}
+
+int dbll_state_make_replace(
+	dbll_state_t *state,
+	const char *path
+) {
+	if(
+		access(path, F_OK) >= 0 &&
+		unlink(path) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	return dbll_state_make(state, path);
 }
 
 int dbll_file_change(dbll_file_t *file, size_t size) {
@@ -500,7 +544,7 @@ int dbll_data_slot_free(
 	}
 
 	slot->is_marked = 1;
-		if(slot->next_ptr != DBLL_ERR && !slot->is_marked) {
+		if(slot->next_ptr != DBLL_NULL && !slot->is_marked) {
 			dbll_data_slot_t next_slot = *slot;
 			if(dbll_data_slot_next(&next_slot, state) < 0) {
 				return DBLL_ERR;
@@ -602,12 +646,26 @@ int dbll_state_unload(dbll_state_t *state) {
 	return DBLL_OK;
 }
 
+int dbll_state_make(dbll_state_t *state, const char *path) {
+	if(state == NULL || path == NULL) {
+		return DBLL_ERR;
+	}
+
+	dbll_file_t temp_file = { 0 };
+	if(dbll_file_make(&temp_file, path) < 0) {
+		return DBLL_ERR;
+	}
+
+	return dbll_state_load(state, path);
+}
+
 dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 	if(
 		!dbll_state_valid(state) ||
+		state->last_empty.this_ptr == DBLL_NULL || 
 		state->last_empty.next_ptr != DBLL_NULL
 	) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
 
 	dbll_ptr_t new_empty = state->last_empty.prev_ptr;
@@ -624,7 +682,7 @@ dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 			new_empty
 		) < 0
 	) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
 
 	state->last_empty.next_ptr = DBLL_NULL;
@@ -635,7 +693,7 @@ dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 			state
 		) < 0
 	) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
 
 	return current;
@@ -643,7 +701,7 @@ dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 
 dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
 
 	dbll_ptr_t empty_slot = dbll_state_empty_find(state);
@@ -658,9 +716,9 @@ dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 			state->header.header_size
 		) < 0
 	) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
-	
+
 	return dbll_mem_to_ptr(state, grow_ptr);
 }
 
@@ -734,13 +792,16 @@ int dbll_ptr_mem_copy(
 
 dbll_ptr_t dbll_mem_to_ptr(dbll_state_t *state, uint8_t *mem) {
 	if(!dbll_state_valid(state) || mem == NULL) {
-		return DBLL_NULL;
+		return DBLL_NULL_ERR;
 	}
 
 	size_t mem_int = (size_t)(mem);
 	size_t file_mem_int = (size_t)(state->file.mem);
 	mem_int -= file_mem_int - state->header.header_size;
-	mem_int /= state->header.list_size;
+
+	// subtracted by one to match zero-based indexing
+	// that addresses have in c, list_size is one-based
+	mem_int /= state->header.list_size - 1;
 	return (dbll_ptr_t)(mem_int);
 }
 
