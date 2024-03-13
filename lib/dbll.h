@@ -40,8 +40,14 @@
 		int data_slot_size;
 	} dbll_header_t;
 
+	struct dbll_state_s;
 	int dbll_header_valid(dbll_header_t *);
 	int dbll_header_load(dbll_header_t *, dbll_file_t *);
+	int dbll_header_write(
+		dbll_header_t *, 
+		struct dbll_state_s *
+	);
+	
 	typedef struct {
 	
 		// to dbll_list_t
@@ -60,7 +66,6 @@
 		DBLL_GO_TAIL
 	} list_go_e;
 
-	struct dbll_state_s;
 	struct dbll_data_slot_s;
 	int dbll_list_valid(dbll_list_t *);
 	int dbll_list_load(
@@ -76,7 +81,7 @@
 		list_go_e
 	);
 	
-	uint8_t *dbll_list_data(
+	int dbll_list_data_index(
 		dbll_list_t *, 
 		struct dbll_state_s *
 	);
@@ -171,18 +176,18 @@
 	dbll_ptr_t dbll_state_empty_find(dbll_state_t *);
 	dbll_ptr_t dbll_state_alloc(dbll_state_t *);
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);
-	int dbll_mem_ptr_copy(
+	int dbll_ptr_index_copy(
 		dbll_state_t *, 
-		uint8_t *, 
-		dbll_ptr_t *
+		dbll_ptr_t,
+		int
 	);
 
-	int dbll_ptr_mem_copy(
+	int dbll_index_ptr_copy(
 		dbll_state_t *,
-		dbll_ptr_t,
-		uint8_t *
+		int,
+		dbll_ptr_t *
 	);
 	
-	dbll_ptr_t dbll_mem_to_ptr(dbll_state_t *, uint8_t *);
-	uint8_t *dbll_ptr_to_mem(dbll_state_t *, dbll_ptr_t);
+	dbll_ptr_t dbll_index_to_ptr(dbll_state_t *, int);
+	int dbll_ptr_to_index(dbll_state_t *, dbll_ptr_t);
 #endif

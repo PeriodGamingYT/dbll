@@ -5,6 +5,9 @@ int test_funcs(const test_func_f *funcs, int size) {
 		return TEST_FAIL;
 	}
 
+	// make it print everything, even on crash
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 	int result = TEST_PASS;
 	for(int i = 0; i < size; i++) {
 		int current_test = funcs[i]();
