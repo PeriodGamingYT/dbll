@@ -97,8 +97,6 @@ int dbll_file_unload(dbll_file_t *file) {
 		return DBLL_ERR;
 	}
 
-	// if we can't close/unmap it, it was never open anyway
-	// so don't check for error
 	if(
 		file->mem != NULL &&
 		msync(
@@ -180,7 +178,6 @@ int dbll_state_make_replace(
 	return dbll_state_make(state, path);
 }
 
-// might not be mapping new size correctly
 int dbll_file_change(dbll_file_t *file, size_t size) {
 	if(
 		!dbll_file_valid(file) ||
