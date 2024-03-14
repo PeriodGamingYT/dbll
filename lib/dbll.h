@@ -16,7 +16,6 @@
 	typedef struct {
 		uint8_t *mem;
 		size_t size;
-		size_t cursor;
 		int desc;
 	} dbll_file_t;
 
@@ -98,8 +97,7 @@
 		// this_ptr points to itself because empty slots
 		// will take up freed slots so when a new slot needs
 		// to be used we can juse use the current empty slot
-		dbll_ptr_t this_ptr; 
-		uint8_t is_next_empty;
+		dbll_ptr_t this_ptr;
 	} dbll_empty_slot_t;
 
 	int dbll_empty_slot_valid(dbll_empty_slot_t *);
@@ -110,11 +108,6 @@
 	);
 
 	int dbll_empty_slot_unload(dbll_empty_slot_t *);
-	int dbll_empty_slot_find(
-		dbll_empty_slot_t *, 
-		struct dbll_state_s *
-	);
-	
 	int dbll_empty_slot_write(
 		dbll_empty_slot_t *, 
 		struct dbll_state_s *

@@ -52,7 +52,6 @@ int dbll_file_valid(dbll_file_t *file) {
 		file != NULL &&
 		file->mem != NULL && 
 		file->size > 0 &&
-		file->cursor >= 0 &&
 		file->desc > 0
 	);
 }
@@ -73,7 +72,6 @@ int dbll_file_load(dbll_file_t *file, const char *path) {
 		return DBLL_ERR;
 	}
 
-	file->cursor = 0;
 	file->mem = (uint8_t*)(
 		mmap(
 			NULL,
@@ -119,7 +117,6 @@ int dbll_file_unload(dbll_file_t *file) {
 
 	file->mem = NULL;
 	file->size = 0;
-	file->cursor = 0;
 	file->desc = 0;
 	return DBLL_OK;
 }
@@ -162,20 +159,6 @@ int dbll_file_make(dbll_file_t *file, const char *path) {
 	}
 	
 	return dbll_file_load(file, path);
-}
-
-int dbll_state_make_replace(
-	dbll_state_t *state,
-	const char *path
-) {
-	if(
-		access(path, F_OK) >= 0 &&
-		unlink(path) < 0
-	) {
-		return DBLL_ERR;
-	}
-
-	return dbll_state_make(state, path);
 }
 
 int dbll_file_change(dbll_file_t *file, size_t size) {
@@ -700,6 +683,20 @@ int dbll_state_make(dbll_state_t *state, const char *path) {
 	return dbll_state_load(state, path);
 }
 
+int dbll_state_make_replace(
+	dbll_state_t *state,
+	const char *path
+) {
+	if(
+		access(path, F_OK) >= 0 &&
+		unlink(path) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	return dbll_state_make(state, path);
+}
+
 dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
 		return DBLL_NULL_ERR;
@@ -812,6 +809,7 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 		return DBLL_ERR;
 	}
 	
+	state->header.empty_slot_ptr = ptr;
 	return DBLL_OK;
 }
 

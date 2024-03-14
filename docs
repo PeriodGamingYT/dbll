@@ -1,0 +1,156 @@
+the name "dbll" means DataBase Linked List, as the linked list is a very
+core part of the database. note that this document is meant to be read with
+the header file as context
+
+DBLL_OK means a function executed successfully
+DBLL_ERR means a function didn't execute successfully
+"dbll_errno" will be added in the future to further clarify
+errors
+
+DBLL_MAGIC_SIZE is the size of "dbll", the magic number used
+for dbll files
+
+DBLL_PTR_MAX is how big a pointer can be, any bigger will trigger
+an error
+
+DBLL_SIZE_MAX is how big a size can be, mainly used for data size,
+any bigger will trigger an error
+
+DBLL_NULL and DBLL_NULL_ERR are 0, but DBLL_NULL_ERR is always returned
+when needing to return a DBLL_NULL, this way DBLL_DEBUG can be used to
+log where nulls are returned in testing/debug builds of the library
+
+dbll_ptr_t is a representation of a pointer in the file, it's not 
+really a pointer to a memory address, more a way to point to blocks
+in the file
+
+a block in the file is anything that contains a list, empty slot, or 
+data. headers are not blocks and as such, are skipped over when 
+calculating where blocks should end up
+
+an index relating to the file is just what byte in a file you want
+to access
+
+dbll_file_t is a wrapper for opening the database file, you can have multiple
+of them, just have multiple dbll_state_t's (covered later in here). the file
+struct contains the memory-mapped file pointer, the size of the file, and the
+file descriptor
+
+dbll_file_valid checks if the file struct can be worked on without issues
+
+dbll_file_load will load in a file, only if it exists
+
+dbll_file_unload will unmap the file, close the file, and reset the struct
+properties to zero
+
+dbll_file_make will make a file, only if it doesn't exist
+
+dbll_file_change will change the size of the file, and adjust memory map
+of the file accordingly
+
+dbll_header_t is a wrapper that parses the header of a dbll database file.
+it copies information that it contain's and calculates sizes of the header
+itself, a list, a empty slot, and a data slot (the of "free" data in it, "free"
+meaning data that the user can change and use)
+
+dbll_header_valid will check if the header struct can be worked on without 
+issues
+
+dbll_header_load will take in a file, not a state like the rest of them
+because the other ones use a state for the file and the header. so we just get
+the file and use that instead. otherwise, it just gets the start of the file, 
+and loads in the appropriate data, and calculates the appropriate sizes of 
+pieces of data found in a dbll database
+
+dbll_header_write will write in data that has changed in dbll_state_t and
+update them accordingly, it does this with the empty_slot_ptr
+
+dbll_list_t is a representation of the core datatype in a dbll database, a
+a binary tree, with a head and tail. as well a pointer and size variables
+about a piece of data. this part of the database was heavily inspired by lisp.
+
+dbll_list_valid checks for a valid list
+
+dbll_list_load will populate a list based on a pointer location in file
+memory
+
+dbll_list_unload will set itself to zero
+
+dbll_list_go will go into a dbll lists head or tail (using DBLL_GO_HEAD or 
+DBLL_GO_TAIL in list_go_e) and load it's head or tail into the current list
+
+dbll_list_data_index will get the byte of file memory the list data starts
+on
+
+dbll_empty_slot_t is a linked list that fills all empty slots, the end of
+the empty slot list is allocated to the user whenever the need for such arises.
+it holds a pointer to the previous, next, and itself
+
+dbll_empty_slot_valid checks if empty slot is valid
+
+dbll_empty_slot_load will populate a empty slot struct based on pointer 
+location in file memory
+
+dbll_empty_slot_unload will set itself to zero
+
+dbll_empty_slot_write will write it's contents to memory, note that it does
+not need a pointer to where as it already has a pointer to itself (this_ptr).
+
+dbll_data_slot_t is the data structure that holds user data. it first has a 
+pointer to the next slot, then the rest is data that the user can change. data
+lists can by cyclic, as in it circles in back on itself. the library can handle
+that appropriately (that's what is_marked does). NOTE: will be redone to use
+indices
+
+dbll_data_slot_valid checks if a data slot is valid
+
+dbll_data_slot_load will populate a data slot from a pointer location from file
+memory
+
+dbll_data_slot_unload will set itself to zero
+
+dbll_data_slot_next will fetch the next block/page (means same thing in this
+context) into the data slot. if next is null, it will return a error.
+
+dbll_data_slot_free will mark all of the data slots as free, then unload them
+all
+
+dbll_data_slot_page will return a memory address from a given address, which is
+a dbll_ptr_t
+
+dbll_state_t is the data structure that keeps tracks of everything in using
+this library. it has where the list starts, and where the last empty slot is.
+
+dbll_state_valid checks if the state is valid
+
+dbll_state_load loads in a state from a file path
+
+dbll_state_unload calls unload on all of its inner components
+
+dbll_state_make makes a file if it can't be found, errors if it is found
+
+dbll_state_replace makes a file if one can't be found, uses the current file
+if it is found
+
+dbll_state_alloc will give a pointer to a free pointer in the file memory. it
+does this by looking at if there are any empty slots available. if not, it
+grows the file
+
+dbll_state_mark_free will take in a memory address and add it to the empty
+slot linked list
+
+NOTE: dbll_state_trim will get rid of empty slots at the end of a file, much
+like trimming fat off of a piece of steak, to be implemented
+
+NOTE: dbll_state_compact will get rid of all empty slots and compact the file
+in, to be implemented
+
+dbll_ptr_index_copy copies the value of a pointer and copies it into a index
+in file memory
+
+dbll_index_ptr_copy copies the value of the file memory at the index given and
+copies it into a pointer
+
+dbll_index_to_ptr converts a file memory index into a pointer
+
+dbll_ptr_to_index converts a pointer into an index for file memory
