@@ -97,10 +97,10 @@ dbll_empty_slot_write will write it's contents to memory, note that it does
 not need a pointer to where as it already has a pointer to itself (this_ptr).
 
 dbll_data_slot_t is the data structure that holds user data. it first has a 
-pointer to the next slot, then the rest is data that the user can change. data
-lists can by cyclic, as in it circles in back on itself. the library can handle
-that appropriately (that's what is_marked does). NOTE: will be redone to use
-indices
+pointer to the next slot, then the rest can by accessed by an index to file 
+memory that the user can change. data lists can by cyclic, as in it circles in 
+back on itself. the library can handle that appropriately (that's what 
+is_marked does).
 
 dbll_data_slot_valid checks if a data slot is valid
 
@@ -110,13 +110,13 @@ memory
 dbll_data_slot_unload will set itself to zero
 
 dbll_data_slot_next will fetch the next block/page (means same thing in this
-context) into the data slot. if next is null, it will return a error.
+context) into the data slot. if next is null, it will return a error
 
 dbll_data_slot_free will mark all of the data slots as free, then unload them
 all
 
-dbll_data_slot_page will return a memory address from a given address, which is
-a dbll_ptr_t
+dbll_data_slot_page will return a file index from a given page index, which is
+a int
 
 dbll_state_t is the data structure that keeps tracks of everything in using
 this library. it has where the list starts, and where the last empty slot is.

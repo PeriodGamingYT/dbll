@@ -115,8 +115,11 @@
 	
 	typedef struct dbll_data_slot_s {
 		dbll_ptr_t next_ptr;
-		uint8_t *data;
 
+		// not in data, used in library for
+		// converting a page index into a file index
+		int data_index;
+		
 		// not in data, used in library for 
 		// preventing cyclic loops
 		uint8_t is_marked;
@@ -144,10 +147,10 @@
 		struct dbll_state_s *
 	);
 	
-	uint8_t *dbll_data_slot_page(
+	int dbll_data_slot_page(
 		dbll_data_slot_t *, 
 		struct dbll_state_s *, 
-		dbll_ptr_t
+		int
 	);
 	
 	typedef struct dbll_state_s {

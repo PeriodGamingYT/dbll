@@ -380,14 +380,12 @@ int dbll_list_data_index(dbll_list_t *list, dbll_state_t *state) {
 	return dbll_ptr_to_index(state, list->data_ptr);
 }
 
+// ad-hoc implementation but it stays for consistency reasons
 int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
 	return (
-		empty_slot != NULL &&
-		empty_slot->is_next_empty >= 0 &&
-		empty_slot->is_next_empty <= 1
+		empty_slot != NULL
 	);
 }
-
 
 int dbll_empty_slot_load(
 	dbll_empty_slot_t *empty_slot,
@@ -430,10 +428,6 @@ int dbll_empty_slot_load(
 		return DBLL_ERR;
 	}
 
-	empty_slot->is_next_empty = state->file.mem[
-		list_file_index + 1 + (ptr_size * 2)
-	];
-
 	return DBLL_OK;
 }
 
@@ -445,7 +439,6 @@ int dbll_empty_slot_unload(dbll_empty_slot_t *slot) {
 	slot->prev_ptr = DBLL_NULL;
 	slot->next_ptr = DBLL_NULL;
 	slot->this_ptr = DBLL_NULL;
-	slot->is_next_empty = 0;
 	return DBLL_OK;
 }
 
@@ -485,17 +478,13 @@ int dbll_empty_slot_write(
 		return DBLL_ERR;
 	}
 
-	state->file.mem[index + (ptr_size * 3)] = (
-		slot->is_next_empty
-	);
-	
 	return DBLL_OK;
 }
 
 int dbll_data_slot_valid(dbll_data_slot_t *slot) {
 	return (
 		slot != NULL &&
-		slot->data != NULL &&
+		slot->data_index >= 0 &&
 		slot->this_ptr != DBLL_NULL
 	);
 }
@@ -520,10 +509,8 @@ int dbll_data_slot_load(
 		return DBLL_ERR;
 	}
 	
-	slot->data = &state->file.mem[
-		index + state->header.ptr_size
-	];
-	
+	slot->data_index = index + state->header.ptr_size;
+	slot->this_ptr = ptr;
 	return DBLL_OK;
 }
 
@@ -533,7 +520,7 @@ int dbll_data_slot_unload(dbll_data_slot_t *slot) {
 	}
 
 	slot->next_ptr = DBLL_NULL;
-	slot->data = NULL;
+	slot->data_index = 0;
 	slot->is_marked = 0;
 	slot->this_ptr = DBLL_NULL;
 	return DBLL_OK;
@@ -587,21 +574,20 @@ int dbll_data_slot_free(
 	return DBLL_OK;
 }
 
-uint8_t *dbll_data_slot_page(
+int dbll_data_slot_page(
 	dbll_data_slot_t *slot,
 	dbll_state_t *state,
-	dbll_ptr_t addr
+	int user_index
 ) {
 	if(
 		!dbll_data_slot_valid(slot) ||
-		!dbll_state_valid(state) || 
-		addr == DBLL_NULL
+		!dbll_state_valid(state)
 	) {
-		return NULL;
+		return -1;
 	}
 	
-	int page_number = addr / state->header.data_slot_size;
-	int page_offset = addr % state->header.data_slot_size;
+	int page_number = user_index / state->header.data_slot_size;
+	int page_offset = user_index % state->header.data_slot_size;
 	dbll_data_slot_t fetch_slot = *slot;
 	for(
 		int i = 0; 
@@ -616,11 +602,11 @@ uint8_t *dbll_data_slot_page(
 			// rather, get every element one by one
 			// and clean them up
 			dbll_data_slot_free(slot, state);
-			return NULL;
+			return -1;
 		}
 	}
 
-	return &fetch_slot.data[page_offset];
+	return slot->data_index + page_offset;
 }
 
 int dbll_state_valid(dbll_state_t *state) {
@@ -727,7 +713,6 @@ dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
 	}
 
 	state->last_empty.next_ptr = DBLL_NULL;
-	state->last_empty.is_next_empty = 1;
 	if(
 		dbll_empty_slot_write(
 			&state->last_empty, 
@@ -778,7 +763,6 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 		dbll_empty_slot_t *prev_slot = &state->last_empty;
 		slot.prev_ptr = prev_slot->this_ptr;
 		prev_slot->next_ptr = ptr;
-		prev_slot->is_next_empty = 0;
 		if(dbll_empty_slot_write(prev_slot, state) < 0) {
 			return DBLL_ERR;
 		}
@@ -786,7 +770,6 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 
 	slot.next_ptr = DBLL_NULL;
 	slot.this_ptr = ptr;
-	slot.is_next_empty = 1;
 	if(dbll_empty_slot_write(&slot, state) < 0) {
 		return DBLL_ERR;
 	}
@@ -885,10 +868,6 @@ int dbll_ptr_to_index(dbll_state_t *state, dbll_ptr_t ptr) {
 		!dbll_state_valid(state) || 
 		ptr == DBLL_NULL
 	) {
-
-		// returns -1 and DBLL_ERR because DBLL_ERR
-		// is meaning for an error but here -1
-		// carries the same connocation as DBLL_NULL
 		return -1;
 	}
 
