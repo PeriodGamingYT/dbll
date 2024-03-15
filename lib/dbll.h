@@ -58,6 +58,9 @@
 		// to uint8_t* (size is multiple of list structure size)
 		dbll_ptr_t data_ptr;
 		dbll_size_t data_size;
+
+		// not in data, used by library
+		dbll_ptr_t this_ptr;
 	} dbll_list_t;
 
 	typedef enum {
@@ -86,21 +89,26 @@
 	);
 	
 	typedef struct {
-	
-		// to dbll_empty_slot_t
-		dbll_ptr_t prev_ptr;
-	
-		// to dbll_empty_slot_t
-		dbll_ptr_t next_ptr; 
-	
+
 		// to dbll_list_t
 		// this_ptr points to itself because empty slots
 		// will take up freed slots so when a new slot needs
 		// to be used we can juse use the current empty slot
 		dbll_ptr_t this_ptr;
+		
+		// to dbll_empty_slot_t
+		dbll_ptr_t prev_ptr;
+	
+		// to dbll_empty_slot_t
+		dbll_ptr_t next_ptr; 
 	} dbll_empty_slot_t;
 
 	int dbll_empty_slot_valid(dbll_empty_slot_t *);
+	int dbll_empty_slot_valid_ptr(
+		struct dbll_state_s *, 
+		dbll_ptr_t
+	);
+	
 	int dbll_empty_slot_load(
 		dbll_empty_slot_t *, 
 		struct dbll_state_s *, 
@@ -109,6 +117,11 @@
 
 	int dbll_empty_slot_unload(dbll_empty_slot_t *);
 	int dbll_empty_slot_write(
+		dbll_empty_slot_t *, 
+		struct dbll_state_s *
+	);
+
+	int dbll_empty_slot_clip(
 		dbll_empty_slot_t *, 
 		struct dbll_state_s *
 	);
@@ -172,6 +185,8 @@
 	dbll_ptr_t dbll_state_empty_find(dbll_state_t *);
 	dbll_ptr_t dbll_state_alloc(dbll_state_t *);
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);
+	int dbll_state_trim(dbll_state_t *);
+	int dbll_state_compact(dbll_state_t *);
 	int dbll_ptr_index_copy(
 		dbll_state_t *, 
 		dbll_ptr_t,

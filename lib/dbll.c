@@ -274,20 +274,23 @@ int dbll_header_write(
 int dbll_list_valid(dbll_list_t *list) {
 	return (
 		list != NULL &&
-		list->data_size >= 0
+		list->data_size >= 0 &&
+		list->head_ptr != list->this_ptr &&
+		list->tail_ptr != list->this_ptr &&
+		list->data_ptr != list->this_ptr
 	);
 }
 
 int dbll_list_load(
 	dbll_list_t *list, 
 	dbll_state_t *state, 
-	dbll_ptr_t list_ptr
+	dbll_ptr_t ptr
 ) {
 	if(!dbll_state_valid(state) || !dbll_list_valid(list)) {
 		return DBLL_ERR;
 	}
 
-	int list_file_index = dbll_ptr_to_index(state, list_ptr);
+	int list_file_index = dbll_ptr_to_index(state, ptr);
 	if(list_file_index < 0) {
 		return DBLL_ERR;
 	}
@@ -321,7 +324,8 @@ int dbll_list_load(
 		&state->file.mem[list_file_index + (ptr_size * 3)],
 		state->header.data_size
 	);
-	
+
+	list->this_ptr = ptr;
 	return DBLL_OK;
 }
 
@@ -383,7 +387,9 @@ int dbll_list_data_index(dbll_list_t *list, dbll_state_t *state) {
 // ad-hoc implementation but it stays for consistency reasons
 int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
 	return (
-		empty_slot != NULL
+		empty_slot != NULL &&
+		empty_slot->prev_ptr != empty_slot->this_ptr &&
+		empty_slot->next_ptr != empty_slot->this_ptr
 	);
 }
 
@@ -435,10 +441,10 @@ int dbll_empty_slot_unload(dbll_empty_slot_t *slot) {
 	if(slot == NULL) {
 		return DBLL_ERR;
 	}
-	
+
+	slot->this_ptr = DBLL_NULL;
 	slot->prev_ptr = DBLL_NULL;
 	slot->next_ptr = DBLL_NULL;
-	slot->this_ptr = DBLL_NULL;
 	return DBLL_OK;
 }
 
@@ -460,7 +466,7 @@ int dbll_empty_slot_write(
 		dbll_ptr_index_copy(
 			state,
 			index,
-			slot->next_ptr
+			slot->this_ptr
 		) < 0 ||
 
 		dbll_ptr_index_copy(
@@ -472,7 +478,7 @@ int dbll_empty_slot_write(
 		dbll_ptr_index_copy(
 			state,
 			index + (ptr_size * 2),
-			slot->this_ptr
+			slot->next_ptr
 		) < 0
 	) {
 		return DBLL_ERR;
@@ -481,11 +487,58 @@ int dbll_empty_slot_write(
 	return DBLL_OK;
 }
 
+int dbll_empty_slot_clip(
+	dbll_empty_slot_t *slot,
+	dbll_state_t *state
+) {
+	if(
+		!dbll_empty_slot_valid(slot) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_ERR;
+	}
+
+	if(slot->prev_ptr != DBLL_NULL) {
+		empty_slot_t prev_slot = { 0 };
+		if(
+			dbll_empty_slot_load(
+				&prev_slot, 
+				state,
+				slot->prev_ptr
+			) < 0
+		) {
+			return DBLL_ERR;
+		}
+
+		prev_slot.next_ptr = slot->next_ptr;
+		dbll_empty_slot_write(&prev_slot, state);
+	}
+
+	if(slot->next_ptr != DBLL_NULL) {
+		empty_slot_t next_slot = { 0 };
+		if(
+			dbll_empty_slot_load(
+				&next_slot,
+				state,
+				slot->next_ptr
+			) < 0
+		) {
+			return DBLL_ERR;
+		}
+
+		next_slot.prev_ptr = slot->prev_ptr;
+		dbll_empty_slot_write(&next_slot, state);
+	}
+
+	return dbll_empty_slot_unload(slot);
+}
+
 int dbll_data_slot_valid(dbll_data_slot_t *slot) {
 	return (
 		slot != NULL &&
 		slot->data_index >= 0 &&
-		slot->this_ptr != DBLL_NULL
+		slot->this_ptr != DBLL_NULL &&
+		slot->next_ptr != slot->this_ptr
 	);
 }
 
@@ -793,6 +846,25 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 	}
 	
 	state->header.empty_slot_ptr = ptr;
+	return DBLL_OK;
+}
+
+// XXX: TODO
+int dbll_state_trim(dbll_state_t *state) {
+	if(!dbll_state_valid(state)) {
+		return DBLL_ERR;
+	}
+
+	
+	return DBLL_OK;
+}
+
+// XXX: TODO
+int dbll_state_compact(dbll_state_t *state) {
+	if(!dbll_state_valid(state)) {
+		return DBLL_ERR;
+	}
+
 	return DBLL_OK;
 }
 

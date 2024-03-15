@@ -68,6 +68,7 @@ update them accordingly, it does this with the empty_slot_ptr
 dbll_list_t is a representation of the core datatype in a dbll database, a
 a binary tree, with a head and tail. as well a pointer and size variables
 about a piece of data. this part of the database was heavily inspired by lisp.
+any of the pointers can not directly point to itself.
 
 dbll_list_valid checks for a valid list
 
@@ -84,9 +85,13 @@ on
 
 dbll_empty_slot_t is a linked list that fills all empty slots, the end of
 the empty slot list is allocated to the user whenever the need for such arises.
-it holds a pointer to the previous, next, and itself
+it holds a pointer to the previous, next, and itself. any pointer can't 
+directly point to itself
 
 dbll_empty_slot_valid checks if empty slot is valid
+
+dbll_empty_slot_valid_ptr checks if something in a file at a pointer is a 
+valid empty slot
 
 dbll_empty_slot_load will populate a empty slot struct based on pointer 
 location in file memory
@@ -96,11 +101,15 @@ dbll_empty_slot_unload will set itself to zero
 dbll_empty_slot_write will write it's contents to memory, note that it does
 not need a pointer to where as it already has a pointer to itself (this_ptr).
 
+dbll_empty_slot_clip will clip off an empty slot, it will write this to 
+memory
+
 dbll_data_slot_t is the data structure that holds user data. it first has a 
 pointer to the next slot, then the rest can by accessed by an index to file 
 memory that the user can change. data lists can by cyclic, as in it circles in 
 back on itself. the library can handle that appropriately (that's what 
-is_marked does).
+is_marked does). you can not have a data slot point to itself directly, but
+you can indirectly.
 
 dbll_data_slot_valid checks if a data slot is valid
 
