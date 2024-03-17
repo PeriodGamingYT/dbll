@@ -141,7 +141,18 @@ int dbll_file_unload(dbll_file_t *file) {
 }
 
 static const uint8_t file_boilerplate[] = {
-	'd', 'b', 'l', 'l', 4, 4, 0, 0, 0, 1
+
+	// header
+	'd', 'b', 'l', 'l', 
+	4, 
+	4, 
+	0, 0, 0, 1,
+
+	// empty root list
+	0, 0, 0, 0, 
+	0, 0, 0, 0, 
+	0, 0, 0, 0, 
+	0, 0, 0, 0
 };
 
 int dbll_file_make(dbll_file_t *file, const char *path) {
@@ -299,7 +310,7 @@ int dbll_list_valid(dbll_list_t *list) {
 				list->head_ptr != list->this_ptr &&
 				list->tail_ptr != list->this_ptr &&
 				list->data_ptr != list->this_ptr
-			) || list->this_ptr == DBLL_NULL			
+			) || list->this_ptr == DBLL_NULL
 		)
 	);
 }
@@ -396,7 +407,10 @@ int dbll_list_go(
 	return dbll_list_load(list, state, go_ptr);
 }
 
-int dbll_list_data_index(dbll_list_t *list, dbll_state_t *state) {
+int dbll_list_data_index(
+	dbll_list_t *list, 
+	dbll_state_t *state
+) {
 	if(
 		!dbll_list_valid(list) ||
 		!dbll_state_valid(state)
@@ -407,7 +421,81 @@ int dbll_list_data_index(dbll_list_t *list, dbll_state_t *state) {
 	return dbll_ptr_to_index(state, list->data_ptr);
 }
 
-// ad-hoc implementation but it stays for consistency reasons
+int dbll_list_data_alloc(
+	dbll_list_t *list,
+	dbll_state_t *state,
+	int size
+) {
+	if(
+		!dbll_list_valid(list) ||
+		!dbll_state_valid(state) ||
+		list->data_ptr != DBLL_NULL ||
+		size < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	dbll_data_slot_t slot = { 0 };
+	if(dbll_data_slot_alloc(&slot, state, size) < 0) {
+		return DBLL_ERR;
+	}
+
+	list->data_ptr = slot.this_ptr;
+	list->data_size = size;
+	return DBLL_OK;
+}
+
+int dbll_list_data_resize(
+	dbll_list_t *list, 
+	dbll_state_t *state, 
+	int size
+) {
+	if(
+		!dbll_list_valid(list) ||
+		!dbll_state_valid(state) ||
+		size < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	if(list->data_ptr == DBLL_NULL) {
+		return dbll_list_data_alloc(list, state, size);
+	}
+
+	dbll_data_slot_t slot = { 0 };
+	if(
+		dbll_data_slot_load(
+			&slot, 
+			state, 
+			list->data_ptr
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+	
+	dbll_ptr_t last_slot = dbll_data_slot_last(&slot, state);
+	if(last_slot == DBLL_NULL) {
+		return DBLL_ERR;
+	}
+
+	// XXX: TODO
+	return DBLL_OK;
+}
+
+dbll_ptr_t dbll_data_slot_last(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_NULL_ERR;
+	}
+
+	// XXX: TODO
+}
+
 int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
 	return (
 		DBLL_VALID(empty_slot != NULL) && (
@@ -522,6 +610,28 @@ int dbll_empty_slot_clip(
 	if(
 		!dbll_empty_slot_valid(slot) ||
 		!dbll_state_valid(state)
+	) {
+		return DBLL_ERR;
+	}
+
+	if(
+		slot->prev_ptr == DBLL_NULL &&
+		slot->next_ptr == DBLL_NULL &&
+		state->last_empty.this_ptr == slot->this_ptr &&
+		dbll_empty_slot_unload(&state->last_empty) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	if(
+		slot->prev_ptr != DBLL_NULL &&
+		slot->next_ptr == DBLL_NULL &&
+		state->last_empty.this_ptr == slot->this_ptr &&
+		dbll_empty_slot_load(
+			&state->last_empty,
+			state,
+			slot->prev_ptr
+		) < 0
 	) {
 		return DBLL_ERR;
 	}
@@ -655,6 +765,8 @@ int dbll_data_slot_free(
 	return DBLL_OK;
 }
 
+// doesn't prevent cyclic data slot access
+// in order to make circular memory possible
 int dbll_data_slot_page(
 	dbll_data_slot_t *slot,
 	dbll_state_t *state,
@@ -687,7 +799,95 @@ int dbll_data_slot_page(
 		}
 	}
 
-	return slot->data_index + page_offset;
+	return fetch_slot.data_index + page_offset;
+}
+
+int dbll_data_slot_alloc(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int size
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state) ||
+		size < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	dbll_data_slot_t *prev_slot = NULL;
+	dbll_data_slot_t temp_slot = { 0 };
+	dbll_data_slot_t prev_temp_slot = { 0 };
+	for(int i = 0; i < size; i++) {
+		dbll_ptr_t new_slot_ptr = dbll_state_alloc(state);
+		if(new_slot_ptr == DBLL_NULL) {
+			return DBLL_ERR;
+		}
+
+		dbll_data_slot_t *current_slot = i == 0
+			? slot
+			: &temp_slot;
+
+		if(
+			dbll_data_slot_load(
+				current_slot, 
+				state, 
+				new_slot_ptr
+			) < 0
+		) {
+			return DBLL_ERR;
+		}
+
+		current_slot->next_ptr = DBLL_NULL;
+		if(prev_slot != NULL) {
+			prev_slot->next_ptr = current_slot->this_ptr;
+			dbll_data_slot_write(prev_slot, state);
+		}
+
+		if(current_slot == &temp_slot) {
+			memcpy(
+				&prev_temp_slot,
+				current_slot,
+				sizeof(dbll_data_slot_t)
+			);
+			
+			prev_slot = &prev_temp_slot;
+			continue;
+		}
+
+		prev_slot = current_slot;
+	}
+	
+	return DBLL_OK;
+}
+
+int dbll_data_slot_write(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_ERR;
+	}
+
+	int index = dbll_ptr_to_index(slot->this_ptr);
+	if(index == -1) {
+		return DBLL_ERR;
+	}
+
+	if(
+		dbll_ptr_index_copy(
+			state,
+			slot->next_ptr
+			index
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	return DBLL_OK;
 }
 
 int dbll_state_valid(dbll_state_t *state) {
@@ -707,21 +907,18 @@ int dbll_state_load(dbll_state_t *state, const char *path) {
 	if(state == NULL || path == NULL) {
 		return DBLL_ERR;
 	}
-	
+
+	state->last_empty = (dbll_empty_slot_t) { 0 };
+	state->root_list = (dbll_list_t) { 0 };
 	if(
-		(
-			dbll_file_load(&state->file, path) < 0 && 
-			dbll_file_make(&state->file, path) < 0
-		) ||
-		
-		dbll_header_load(&state->header, &state->file) < 0
+		dbll_file_load(&state->file, path) < 0 ||
+		dbll_header_load(&state->header, &state->file) < 0 ||
+		dbll_list_load(&state->root_list, state, 1) < 0
 	) {
 		dbll_state_unload(state);
 		return DBLL_ERR;
 	}
 
-	state->last_empty = (dbll_empty_slot_t) { 0 };
-	state->root_list = (dbll_list_t) { 0 };
 	return DBLL_OK;
 }
 
@@ -765,13 +962,19 @@ int dbll_state_make_replace(
 }
 
 dbll_ptr_t dbll_state_empty_find(dbll_state_t *state) {
-	if(!dbll_state_valid(state)) {
+	if(
+		!dbll_state_valid(state) ||
+
+		// this is an error since last empty should
+		// always point to the last empty slot in the
+		// empty slot linked list
+		state->last_empty.next_ptr != DBLL_NULL
+	) {
 		return DBLL_NULL_ERR;
 	}
 
 	if(
-		state->last_empty.this_ptr == DBLL_NULL || 
-		state->last_empty.next_ptr != DBLL_NULL
+		state->last_empty.this_ptr == DBLL_NULL
 	) {
 		return DBLL_NULL;
 	}
@@ -977,5 +1180,10 @@ int dbll_ptr_to_index(dbll_state_t *state, dbll_ptr_t ptr) {
 	ptr--;
 	dbll_header_t *header = &state->header;
 	int offset = header->header_size;
-	return offset + (ptr * (header->list_size - 1));
+	int index = offset + (ptr * (header->list_size - 1));
+	if(index < 0 || index >= state->file.size) {
+		return -1;
+	}
+
+	return index;
 }

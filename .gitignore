@@ -6,6 +6,7 @@ obj/*
 lib/debug.h
 test/db/*.dbll
 !test/db/test-0.dbll
+!test/db/test-load-unload.dbll
 .kdev4
 .kdev4/
 .kdev4/*

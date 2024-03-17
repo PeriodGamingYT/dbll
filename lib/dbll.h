@@ -55,8 +55,10 @@
 		// to dbll_list_t
 		dbll_ptr_t tail_ptr;
 
-		// to uint8_t* (size is multiple of list structure size)
+		// to int (file index), size is multiple of list structure size
 		dbll_ptr_t data_ptr;
+
+		// data_size is multiples of list size
 		dbll_size_t data_size;
 
 		// not in data, used by library
@@ -86,6 +88,18 @@
 	int dbll_list_data_index(
 		dbll_list_t *, 
 		struct dbll_state_s *
+	);
+
+	int dbll_list_data_alloc(
+		dbll_list_t *,
+		struct dbll_state_s *,
+		int
+	);
+
+	int dbll_list_data_resize(
+		dbll_list_t *,
+		struct dbll_state_s *,
+		int
 	);
 	
 	typedef struct {
@@ -165,6 +179,22 @@
 		struct dbll_state_s *, 
 		int
 	);
+
+	int dbll_data_slot_alloc(
+		dbll_data_slot_t *,
+		struct dbll_state_s *,
+		int
+	);
+
+	int dbll_data_slot_write(
+		dbll_data_slot_t *,
+		struct dbll_state_s *
+	);
+
+	dbll_ptr_t dbll_data_slot_last(
+		dbll_data_slot_t *,
+		struct dbll_state_s *
+	);
 	
 	typedef struct dbll_state_s {
 		dbll_file_t file;
@@ -187,6 +217,20 @@
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);
 	int dbll_state_trim(dbll_state_t *);
 	int dbll_state_compact(dbll_state_t *);
+	int dbll_state_write(
+		dbll_state_t *,
+		int,
+		uint8_t *,
+		size_t
+	);
+
+	int dbll_state_read(
+		dbll_state_t *,
+		int,
+		uint8_t *,
+		size_t
+	);
+	
 	int dbll_ptr_index_copy(
 		dbll_state_t *, 
 		dbll_ptr_t,

@@ -68,7 +68,7 @@ update them accordingly, it does this with the empty_slot_ptr
 dbll_list_t is a representation of the core datatype in a dbll database, a
 a binary tree, with a head and tail. as well a pointer and size variables
 about a piece of data. this part of the database was heavily inspired by lisp.
-any of the pointers can not directly point to itself.
+any of the pointers can not directly point to itself
 
 dbll_list_valid checks for a valid list
 
@@ -82,6 +82,15 @@ DBLL_GO_TAIL in list_go_e) and load it's head or tail into the current list
 
 dbll_list_data_index will get the byte of file memory the list data starts
 on
+
+dbll_list_data_alloc will allocate brand new data to its data slot. errors if
+data is already allocated
+
+dbll_list_data_resize will resize the amount of memory that a list has access 
+to, the sizes will be multiples of the list size, also known as a block. new
+data will be initalized to zero, old data will be erased and replaced by empty
+slots. note that this will overwrite cyclic next pointers, specifically at the 
+pointer which first introduces the cycle
 
 dbll_empty_slot_t is a linked list that fills all empty slots, the end of
 the empty slot list is allocated to the user whenever the need for such arises.
@@ -102,7 +111,7 @@ dbll_empty_slot_write will write it's contents to memory, note that it does
 not need a pointer to where as it already has a pointer to itself (this_ptr).
 
 dbll_empty_slot_clip will clip off an empty slot, it will write this to 
-memory
+memory. it will handle edge cases with the given states last empty slot
 
 dbll_data_slot_t is the data structure that holds user data. it first has a 
 pointer to the next slot, then the rest can by accessed by an index to file 
@@ -126,6 +135,16 @@ all
 
 dbll_data_slot_page will return a file index from a given page index, which is
 a int
+
+dbll_data_slot_alloc will append additional data slots up to given size
+
+dbll_data_slot_write will write a data slot to file memory, note that this will
+not affect any of the data the data slot holds, nor does this function write to
+it
+
+dbll_data_slot_last will get the pointer to where the last pointer is in a data
+slot. if it's cyclic, it will get the pointer where its next pointer points 
+back onto itself
 
 dbll_state_t is the data structure that keeps tracks of everything in using
 this library. it has where the list starts, and where the last empty slot is.
