@@ -14,8 +14,11 @@
 // DBLL_NULL_ERR is like DBLL_ERR except you only use DBLL_NULL_ERR
 // for returning a dbll null and DBLL_NULL for everything else, also
 // DBLL_NULL_ERR can only be used inside the library
+// DBLL_VALID is to print when something is invalid inside of a 
+// ..._valid() function
 #define DBLL_NULL_ERR DBLL_NULL
 #define DBLL_LOG(...)
+#define DBLL_VALID(...) __VA_ARGS__
 #ifdef DBLL_DEBUG
 	static int err_log(int line) {
 		printf("returned error at line %d!\n", line);
@@ -27,9 +30,25 @@
 		return DBLL_NULL;
 	}
 
+	static int valid_log(
+		const char *expr, 
+		int is_valid, 
+		int line
+	) {
+		if(!is_valid) {
+			printf("%s is not valid on line %d\n", expr, line);
+		}
+
+		return is_valid;
+	}
+
 	#undef DBLL_NULL_ERR
 	#undef DBLL_ERR
 	#undef DBLL_LOG
+	#undef DBLL_VALID
+	#define DBLL_VALID(expr) \
+		valid_log(#expr, expr, __LINE__)
+	
 	#define DBLL_LOG(...) \
 		printf("\"" __VA_ARGS__); \
 		printf("\" on line %d\n", __LINE__)
@@ -49,10 +68,10 @@ static size_t file_size(int desc) {
 
 int dbll_file_valid(dbll_file_t *file) {
 	return (
-		file != NULL &&
-		file->mem != NULL && 
-		file->size > 0 &&
-		file->desc > 0
+		DBLL_VALID(file != NULL) &&
+		DBLL_VALID(file->mem != NULL) && 
+		DBLL_VALID(file->size > 0) &&
+		DBLL_VALID(file->desc > 0)
 	);
 }
 
@@ -204,18 +223,18 @@ static const uint32_t dbll_header_magic = 1819042404;
 int dbll_header_valid(dbll_header_t *header) {
 	uint32_t magic_int = *((uint32_t *)(header->magic));
 	return (
-		header != NULL &&
-		magic_int == dbll_header_magic && (
+		DBLL_VALID(header != NULL) &&
+		DBLL_VALID(magic_int == dbll_header_magic) && DBLL_VALID(
 			header->ptr_size == 1 ||
 			header->ptr_size == 2 ||
 			header->ptr_size == 4 ||
 			header->ptr_size == 8
 		) &&
 
-		header->data_size > 0 &&
-		header->data_size <= DBLL_SIZE_MAX &&
-		header->list_size > 0 &&
-		header->header_size > 0
+		DBLL_VALID(header->data_size > 0) &&
+		DBLL_VALID(header->data_size <= DBLL_SIZE_MAX) &&
+		DBLL_VALID(header->list_size > 0) &&
+		DBLL_VALID(header->header_size > 0)
 	);
 }
 
@@ -273,11 +292,15 @@ int dbll_header_write(
 
 int dbll_list_valid(dbll_list_t *list) {
 	return (
-		list != NULL &&
-		list->data_size >= 0 &&
-		list->head_ptr != list->this_ptr &&
-		list->tail_ptr != list->this_ptr &&
-		list->data_ptr != list->this_ptr
+		DBLL_VALID(list != NULL) &&
+		DBLL_VALID(list->data_size >= 0) &&
+		DBLL_VALID(
+			(
+				list->head_ptr != list->this_ptr &&
+				list->tail_ptr != list->this_ptr &&
+				list->data_ptr != list->this_ptr
+			) || list->this_ptr == DBLL_NULL			
+		)
 	);
 }
 
@@ -387,9 +410,14 @@ int dbll_list_data_index(dbll_list_t *list, dbll_state_t *state) {
 // ad-hoc implementation but it stays for consistency reasons
 int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
 	return (
-		empty_slot != NULL &&
-		empty_slot->prev_ptr != empty_slot->this_ptr &&
-		empty_slot->next_ptr != empty_slot->this_ptr
+		DBLL_VALID(empty_slot != NULL) && (
+			DBLL_VALID(
+				(
+					empty_slot->prev_ptr != empty_slot->this_ptr &&
+					empty_slot->next_ptr != empty_slot->this_ptr
+				) || empty_slot->this_ptr == DBLL_NULL
+			)
+		)
 	);
 }
 
@@ -499,7 +527,7 @@ int dbll_empty_slot_clip(
 	}
 
 	if(slot->prev_ptr != DBLL_NULL) {
-		empty_slot_t prev_slot = { 0 };
+		dbll_empty_slot_t prev_slot = { 0 };
 		if(
 			dbll_empty_slot_load(
 				&prev_slot, 
@@ -515,7 +543,7 @@ int dbll_empty_slot_clip(
 	}
 
 	if(slot->next_ptr != DBLL_NULL) {
-		empty_slot_t next_slot = { 0 };
+		dbll_empty_slot_t next_slot = { 0 };
 		if(
 			dbll_empty_slot_load(
 				&next_slot,
@@ -535,10 +563,10 @@ int dbll_empty_slot_clip(
 
 int dbll_data_slot_valid(dbll_data_slot_t *slot) {
 	return (
-		slot != NULL &&
-		slot->data_index >= 0 &&
-		slot->this_ptr != DBLL_NULL &&
-		slot->next_ptr != slot->this_ptr
+		DBLL_VALID(slot != NULL) &&
+		DBLL_VALID(slot->data_index >= 0) &&
+		DBLL_VALID(slot->this_ptr != DBLL_NULL) &&
+		DBLL_VALID(slot->next_ptr != slot->this_ptr)
 	);
 }
 
@@ -664,11 +692,11 @@ int dbll_data_slot_page(
 
 int dbll_state_valid(dbll_state_t *state) {
 	return (
-		state != NULL &&
-		dbll_file_valid(&state->file) &&
-		dbll_header_valid(&state->header) &&
-		dbll_empty_slot_valid(&state->last_empty) &&
-		dbll_list_valid(&state->root_list)
+		DBLL_VALID(state != NULL) &&
+		DBLL_VALID(dbll_file_valid(&state->file)) &&
+		DBLL_VALID(dbll_header_valid(&state->header)) &&
+		DBLL_VALID(dbll_empty_slot_valid(&state->last_empty)) &&
+		DBLL_VALID(dbll_list_valid(&state->root_list))
 	);
 	
 	// gcc gives incorrect warning
