@@ -144,7 +144,16 @@ it
 
 dbll_data_slot_last will get the pointer to where the last pointer is in a data
 slot. if it's cyclic, it will get the pointer where its next pointer points 
-back onto itself
+back onto itself. more accurately it will walk the linked list until it goes
+into a null or a place it has been before. a side effect of this is that if
+you don't call dbll_data_slot_last from the beginning of a data slot list, it
+might not actually get the last slot in the list if the list is cyclic, depends
+on how the list is setup and from which data slot you call it from
+
+dbll_data_slot_cut_end will get rid of some amount of blocks of size provided.
+it will know where the end is with dbll_data_slot_last, so keep that in mind.
+one thing it does in advance is disconnect the next_ptr on the last block so
+that dbll_data_slot_free doesn't free the whole thing
 
 dbll_state_t is the data structure that keeps tracks of everything in using
 this library. it has where the list starts, and where the last empty slot is.

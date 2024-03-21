@@ -95,7 +95,7 @@
 		struct dbll_state_s *,
 		int
 	);
-
+	
 	int dbll_list_data_resize(
 		dbll_list_t *,
 		struct dbll_state_s *,
@@ -194,6 +194,12 @@
 	dbll_ptr_t dbll_data_slot_last(
 		dbll_data_slot_t *,
 		struct dbll_state_s *
+	);
+
+	int dbll_data_slot_cut_end(
+		dbll_data_slot_t *,
+		struct dbll_state_s *,
+		int
 	);
 	
 	typedef struct dbll_state_s {
