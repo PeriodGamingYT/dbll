@@ -883,7 +883,7 @@ int dbll_data_slot_write(
 // recurse in here to get size, that way when the
 // recursion is unwinded we can see when to cut
 // with the size pointer, but the user shouldn't
-// have to do that, so it's done in dbll_data_slot_cut
+// have to do that, so it's done in dbll_data_slot_cut_end
 // instead 
 static int data_slot_cut_end_inner(
 	dbll_data_slot_t *slot,
@@ -939,41 +939,6 @@ static int data_slot_cut_end_inner(
 	return DBLL_OK;
 }
 
-dbll_ptr_t dbll_data_slot_last(
-	dbll_data_slot_t *slot,
-	dbll_state_t *state,
-	int *size
-) {
-	if(
-		!dbll_data_slot_valid(slot) ||
-		!dbll_state_valid(state)
-	) {
-		return DBLL_NULL_ERR;
-	}
-
-	slot->is_marked = 1;
-		if(slot->next_ptr != DBLL_NULL && !slot->is_marked) {
-			dbll_data_slot_t next_slot = *slot;
-			if(dbll_data_slot_next(&next_slot, state) < 0) {
-				return DBLL_NULL_ERR;
-			}
-
-			if(size != NULL) {
-				(*size)++;
-			}
-			
-			if(dbll_data_slot_last(&next_slot, state, size) == DBLL_NULL) {
-				return DBLL_NULL_ERR;
-			}
-		}
-
-		if(slot->is_marked) {
-			return DBLL_OK;
-		}
-	slot->is_marked = 0;
-	return slot->this_ptr;
-}
-
 int dbll_data_slot_cut_end(
 	dbll_data_slot_t *slot,
 	dbll_state_t *state,
@@ -998,6 +963,41 @@ int dbll_data_slot_cut_end(
 		&total_size,
 		size
 	);
+}
+
+dbll_ptr_t dbll_data_slot_last(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int *size
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_NULL_ERR;
+	}
+
+	slot->is_marked = 1;
+		if(slot->next_ptr != DBLL_NULL && !slot->is_marked) {
+			dbll_data_slot_t next_slot = *slot;
+			if(dbll_data_slot_next(&next_slot, state) < 0) {
+				return DBLL_NULL_ERR;
+			}
+
+			if(size != NULL) {
+				(*size)++;
+			}
+
+			if(dbll_data_slot_last(&next_slot, state, size) == DBLL_NULL) {
+				return DBLL_NULL_ERR;
+			}
+		}
+
+		if(slot->is_marked) {
+			return DBLL_OK;
+		}
+	slot->is_marked = 0;
+	return slot->this_ptr;
 }
 
 int dbll_state_valid(dbll_state_t *state) {
