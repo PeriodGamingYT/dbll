@@ -23,7 +23,7 @@
 	int dbll_file_load(dbll_file_t *, const char *);
 	int dbll_file_unload(dbll_file_t *);
 	int dbll_file_make(dbll_file_t *, const char *);
-	int dbll_file_change(dbll_file_t *, size_t);
+	int dbll_file_change_size(dbll_file_t *, size_t);
 	typedef struct {
 		char magic[DBLL_MAGIC_SIZE];
 		uint8_t ptr_size;
@@ -221,6 +221,11 @@
 	dbll_ptr_t dbll_state_empty_find(dbll_state_t *);
 	dbll_ptr_t dbll_state_alloc(dbll_state_t *);
 	int dbll_state_mark_free(dbll_state_t *, dbll_ptr_t);
+	int dbll_state_total_size(
+		dbll_state_t *,
+		dbll_ptr_t *
+	);
+
 	int dbll_state_trim(dbll_state_t *);
 	int dbll_state_compact(dbll_state_t *);
 	int dbll_state_write(

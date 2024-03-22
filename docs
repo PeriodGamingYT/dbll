@@ -45,8 +45,9 @@ properties to zero
 
 dbll_file_make will make a file, only if it doesn't exist
 
-dbll_file_change will change the size of the file, and adjust memory map
-of the file accordingly
+dbll_file_change_size will change the size of the file, and adjust memory map
+of the file accordingly. note that the size changes the file size in bytes, not
+blocks, so account for that
 
 dbll_header_t is a wrapper that parses the header of a dbll database file.
 it copies information that it contain's and calculates sizes of the header
@@ -175,6 +176,8 @@ grows the file
 
 dbll_state_mark_free will take in a memory address and add it to the empty
 slot linked list
+
+dbll_state_total_size will get the size of all every blocks in a file
 
 NOTE: dbll_state_trim will get rid of empty slots at the end of a file, much
 like trimming fat off of a piece of steak, to be implemented

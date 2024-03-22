@@ -191,7 +191,7 @@ int dbll_file_make(dbll_file_t *file, const char *path) {
 	return dbll_file_load(file, path);
 }
 
-int dbll_file_change(dbll_file_t *file, size_t size) {
+int dbll_file_change_size(dbll_file_t *file, size_t size) {
 	if(
 		!dbll_file_valid(file) ||
 		file->size + size < 0
@@ -1131,7 +1131,7 @@ dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 
 	int grow_index = state->file.size - 1;
 	if(
-		dbll_file_change(
+		dbll_file_change_size(
 			&state->file, 
 			state->header.header_size
 		) < 0
@@ -1190,13 +1190,117 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 	return DBLL_OK;
 }
 
-// XXX: TODO
+int dbll_state_total_size(
+	dbll_state_t *state,
+	dbll_ptr_t *size
+) {
+	if(
+		!dbll_state_valid(state) ||
+		size == NULL
+	) {
+		return DBLL_ERR;
+	}
+
+	*size = (
+		state->file.size -
+		state->header.header_size
+	) / state->header.list_size;
+
+	return DBLL_OK;
+}
+
+int dbll_state_is_empty_slot(
+	dbll_state_t *state,
+	dbll_ptr_t ptr
+) {
+	if(!dbll_state_valid(state)) {
+
+		// return 0 and not DBLL_ERR since an empty slot can't
+		// exist if a state for it doesn't exist either
+		return 0;
+	}
+
+	int index = dbll_ptr_to_index(state, ptr);
+	if(index == -1) {
+
+		// see comment above
+		return 0;
+	}
+
+	dbll_ptr_t maybe_this_ptr = DBLL_NULL;
+	if(
+		dbll_index_ptr_copy(
+			state,
+			index,
+			&maybe_this_ptr
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	// the reason that this works is my intentionally designing
+	// constraints around referencing one's self in data, nothing
+	// can do this except an empty slot. this is done so that dbll_state_trim
+	// doesn't have to run through the entire empty slot linked list in order
+	// to find what it wants. basically an optimization technique
+	return maybe_this_ptr == ptr;
+}
+
 int dbll_state_trim(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
 		return DBLL_ERR;
 	}
 
-	
+	dbll_ptr_t current_ptr = 0;
+	if(
+		dbll_state_total_size(
+			state,
+			&current_ptr
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	int trim_size = 0;
+
+	// total pointer/block size of file is computed in one-based indices as all
+	// sizes are, but not zero, this operation converts it to
+	// a zero-based index
+	current_ptr--;
+	while(
+		current_ptr >= 0 &&
+		dbll_state_is_empty_slot(
+			state,
+			current_ptr
+		)
+	) {
+		if(
+			dbll_empty_slot_load(
+				&slot,
+				state,
+				current_ptr
+			) < 0 ||
+
+			dbll_empty_slot_clip(
+				&slot,
+				state
+			) < 0
+		) {
+			return DBLL_ERR;
+		}
+
+		trim_size++;
+		current_ptr--;
+		dbll_empty_slot_t slot = { 0 };
+	}
+
+	if(trim_size > 0) {
+		return dbll_file_change_size(
+			&state->file,
+			-(trim_size * state->header.list_size)
+		);
+	}
+
 	return DBLL_OK;
 }
 
@@ -1215,7 +1319,7 @@ int dbll_index_ptr_copy(
 	dbll_ptr_t *ptr
 ) {
 	if(
-		!dbll_state_valid(state) || 
+		!dbll_state_valid(state) ||
 		index < 0 ||
 		index >= state->file.size || 
 		ptr == NULL
@@ -1259,7 +1363,7 @@ int dbll_ptr_index_copy(
 
 dbll_ptr_t dbll_index_to_ptr(dbll_state_t *state, int index) {
 	if(
-		!dbll_state_valid(state) || 
+		!dbll_state_valid(state) ||
 		index < 0 || 
 		index >= state->file.size
 	) {
@@ -1278,7 +1382,7 @@ dbll_ptr_t dbll_index_to_ptr(dbll_state_t *state, int index) {
 
 int dbll_ptr_to_index(dbll_state_t *state, dbll_ptr_t ptr) {
 	if(
-		!dbll_state_valid(state) || 
+		!dbll_state_valid(state) ||
 		ptr == DBLL_NULL
 	) {
 		return -1;

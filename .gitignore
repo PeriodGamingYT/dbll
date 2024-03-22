@@ -11,3 +11,4 @@ test/db/*.dbll
 .kdev4/
 .kdev4/*
 *.kdev4
+*.kate-swp
