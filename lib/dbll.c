@@ -499,6 +499,43 @@ int dbll_empty_slot_valid(dbll_empty_slot_t *empty_slot) {
 	);
 }
 
+int dbll_empty_slot_valid_ptr(
+	dbll_state_t *state,
+	dbll_ptr_t ptr
+) {
+	if(!dbll_state_valid(state)) {
+
+		// return 0 and not DBLL_ERR since an empty slot can't
+		// exist if a state for it doesn't exist either
+		return 0;
+	}
+
+	int index = dbll_ptr_to_index(state, ptr);
+	if(index == -1) {
+
+		// see comment above
+		return 0;
+	}
+
+	dbll_ptr_t maybe_this_ptr = DBLL_NULL;
+	if(
+		dbll_index_ptr_copy(
+			state,
+			index,
+			&maybe_this_ptr
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	// the reason that this works is my intentionally designing
+	// constraints around referencing one's self in data, nothing
+	// can do this except an empty slot. this is done so that dbll_state_trim
+	// doesn't have to run through the entire empty slot linked list in order
+	// to find what it wants. basically an optimization technique
+	return maybe_this_ptr == ptr;
+}
+
 int dbll_empty_slot_load(
 	dbll_empty_slot_t *empty_slot,
 	dbll_state_t *state,
@@ -1209,43 +1246,6 @@ int dbll_state_total_size(
 	return DBLL_OK;
 }
 
-int dbll_state_is_empty_slot(
-	dbll_state_t *state,
-	dbll_ptr_t ptr
-) {
-	if(!dbll_state_valid(state)) {
-
-		// return 0 and not DBLL_ERR since an empty slot can't
-		// exist if a state for it doesn't exist either
-		return 0;
-	}
-
-	int index = dbll_ptr_to_index(state, ptr);
-	if(index == -1) {
-
-		// see comment above
-		return 0;
-	}
-
-	dbll_ptr_t maybe_this_ptr = DBLL_NULL;
-	if(
-		dbll_index_ptr_copy(
-			state,
-			index,
-			&maybe_this_ptr
-		) < 0
-	) {
-		return DBLL_ERR;
-	}
-
-	// the reason that this works is my intentionally designing
-	// constraints around referencing one's self in data, nothing
-	// can do this except an empty slot. this is done so that dbll_state_trim
-	// doesn't have to run through the entire empty slot linked list in order
-	// to find what it wants. basically an optimization technique
-	return maybe_this_ptr == ptr;
-}
-
 int dbll_state_trim(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
 		return DBLL_ERR;
@@ -1269,7 +1269,7 @@ int dbll_state_trim(dbll_state_t *state) {
 	current_ptr--;
 	while(
 		current_ptr >= 0 &&
-		dbll_state_is_empty_slot(
+		dbll_empty_slot_valid_ptr(
 			state,
 			current_ptr
 		)
@@ -1304,9 +1304,76 @@ int dbll_state_trim(dbll_state_t *state) {
 	return DBLL_OK;
 }
 
-// XXX: TODO
 int dbll_state_compact(dbll_state_t *state) {
 	if(!dbll_state_valid(state)) {
+		return DBLL_ERR;
+	}
+
+	int total_size = 0;
+	if(
+		dbll_state_total_size(
+			state,
+			&total_size
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	int decrease_size = 0;
+	dbll_ptr_t current_empty_ptr = state->last_empty;
+	while(
+		current_empty_ptr != DBLL_NULL &&
+		dbll_empty_slot_valid_ptr(
+			state,
+			current_empty_ptr
+		)
+	) {
+		dbll_empty_slot_t slot = { 0 };
+		if(
+			dbll_empty_slot_load(
+				&slot,
+				state,
+				current_empty_ptr
+			) < 0
+		) {
+			return DBLL_ERR;
+		}
+
+		for(
+			int i = current_empty_ptr + 1;
+			i < total_size;
+			i++
+		) {
+			int past_index = dbll_ptr_to_index(state, i - 1);
+			int current_index = dbll_ptr_to_index(state, i);
+			if(
+				past_index == -1 ||
+				current_index == -1
+			) {
+				return DBLL_ERR;
+			}
+
+			memcpy(
+				&state->file.mem[&past_index],
+				&state->file.mem[&current_index],
+				state->header.list_size
+			);
+		}
+
+		total_size--;
+		decrease_size++;
+		current_empty_ptr = slot.next_ptr;
+	}
+
+	if(
+		dbll_file_change_size(
+			&state->file,
+			-(
+				decrease_size *
+				state->header.list_size
+			)
+		) < 0
+	) {
 		return DBLL_ERR;
 	}
 

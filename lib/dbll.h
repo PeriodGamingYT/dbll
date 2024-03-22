@@ -32,6 +32,9 @@
 
 		// not in file, computed in dbll_header_load
 		int header_size;
+
+		// list size is also the size of a block. this is an
+		// important detail to note, so take note of this
 		int list_size;
 		int empty_slot_size;
 
@@ -201,6 +204,22 @@
 		struct dbll_state_s *,
 		int
 	);
+
+	int dbll_data_slot_write_mem(
+		dbll_data_slot_t *,
+		struct dbll_state_s *,
+		int,
+		uint8_t *,
+		size_t
+	);
+
+	int dbll_data_slot_read_mem(
+		dbll_data_slot_t *,
+		struct dbll_state_s *,
+		int,
+		uint8_t *,
+		size_t
+	);
 	
 	typedef struct dbll_state_s {
 		dbll_file_t file;
@@ -228,20 +247,6 @@
 
 	int dbll_state_trim(dbll_state_t *);
 	int dbll_state_compact(dbll_state_t *);
-	int dbll_state_write(
-		dbll_state_t *,
-		int,
-		uint8_t *,
-		size_t
-	);
-
-	int dbll_state_read(
-		dbll_state_t *,
-		int,
-		uint8_t *,
-		size_t
-	);
-	
 	int dbll_ptr_index_copy(
 		dbll_state_t *, 
 		dbll_ptr_t,

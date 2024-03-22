@@ -156,6 +156,12 @@ it will know where the end is with dbll_data_slot_last, so keep that in mind.
 one thing it does in advance is disconnect the next_ptr on the last block so
 that dbll_data_slot_free doesn't free the whole thing
 
+NOTE: dbll_data_slot_write_mem will take memory given by the user and write it into the
+data block memory, to be implemented
+
+NOTE: dbll_data_slot_read_mem will take memory in the data slot and write it into the
+memory given by the user, to be implemented
+
 dbll_state_t is the data structure that keeps tracks of everything in using
 this library. it has where the list starts, and where the last empty slot is.
 
@@ -179,11 +185,11 @@ slot linked list
 
 dbll_state_total_size will get the size of all every blocks in a file
 
-NOTE: dbll_state_trim will get rid of empty slots at the end of a file, much
-like trimming fat off of a piece of steak, to be implemented
+dbll_state_trim will get rid of empty slots at the end of a file, much
+like trimming fat off of a piece of steak
 
-NOTE: dbll_state_compact will get rid of all empty slots and compact the file
-in, to be implemented
+dbll_state_compact will get rid of all empty slots and compact the file
+in
 
 dbll_ptr_index_copy copies the value of a pointer and copies it into a index
 in file memory

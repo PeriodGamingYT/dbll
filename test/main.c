@@ -69,9 +69,9 @@ int test_mark_free() {
 // XXX: the implementation need to write this function is not done yet,
 // as such, do not use the results of the test as of yet until everything
 // in here is implemented
-int test_mark_data_write() {
+int test_data_write() {
 	dbll_state_t state = { 0 };
-	if(dbll_state_make_replace(&state, "db/test-mark-data-write.dbll") < 0) {
+	if(dbll_state_make_replace(&state, "db/test-data-write.dbll") < 0) {
 		return TEST_FAIL;
 	}
 		if(dbll_list_data_resize(&state->root_list, &state, 3) < 0) {
@@ -79,17 +79,24 @@ int test_mark_data_write() {
 			return TEST_FAIL;
 		}
 
-		int data_index = dbll_list_data_index(&state->root_list, &state);
-		if(data_index == -1) {
+		dbll_data_slot_t slot = { 0 };
+		if(
+			dbll_data_slot_load(
+				&slot,
+				&state,
+				state->root_list.data_ptr
+			) < 0
+		) {
 			dbll_state_unload(&state);
 			return TEST_FAIL;
 		}
 
 		int data[] = { 1, 2, 3, 4 };
 		if(
-			dbll_state_write(
-				&state, 
-				data_index, 
+			dbll_data_slot_write_mem(
+				&slot,
+				&state,
+				0,
 				data, 
 				ARRAY_SIZE(data)
 			) < 0
@@ -108,7 +115,8 @@ const test_func_f dbll_test_funcs[] = {
 	test_load_unload,
 	test_make_replace,
 	test_alloc,
-	test_mark_free
+	test_mark_free,
+	test_data_write
 };
 
 int main() {
