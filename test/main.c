@@ -66,6 +66,9 @@ int test_mark_free() {
 	return TEST_PASS;
 }
 
+// XXX: the implementation need to write this function is not done yet,
+// as such, do not use the results of the test as of yet until everything
+// in here is implemented
 int test_mark_data_write() {
 	dbll_state_t state = { 0 };
 	if(dbll_state_make_replace(&state, "db/test-mark-data-write.dbll") < 0) {
