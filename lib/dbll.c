@@ -1037,6 +1037,106 @@ dbll_ptr_t dbll_data_slot_last(
 	return slot->this_ptr;
 }
 
+int dbll_data_slot_write_mem(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int offset,
+	uint8_t *mem,
+	size_t mem_size
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state) ||
+		offset < 0 ||
+		mem == NULL ||
+		mem_size < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	int page_size = state->header.data_slot_size;
+	int mem_index = 0;
+	while(mem_index < mem_size) {
+		int max_page_size = page_size - offset;
+		int page_index = dbll_data_slot_page(
+			slot,
+			state,
+			mem_index
+		);
+
+		if(max_page_size > mem_size - mem_index) {
+			memcpy(
+				&state->file.mem[page_index],
+				&mem[mem_index],
+				mem_size
+			);
+
+			return DBLL_OK;
+		}
+
+		memcpy(
+			&state->file.mem[page_index],
+			&mem[mem_index],
+			max_page_size
+		);
+
+		offset = 0;
+		mem_index += max_page_size + offset;
+	}
+
+	return DBLL_OK;
+}
+
+int dbll_data_slot_read_mem(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int offset,
+	uint8_t *mem,
+	size_t mem_size
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state) ||
+		offset < 0 ||
+		mem == NULL ||
+		mem_size < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	int page_size = state->header.data_slot_size;
+	int mem_index = 0;
+	while(mem_index < mem_size) {
+		int max_page_size = page_size - offset;
+		int page_index = dbll_data_slot_page(
+			slot,
+			state,
+			mem_index
+		);
+
+		if(max_page_size > mem_size - mem_index) {
+			memcpy(
+				&mem[mem_index],
+				&state->file.mem[page_index],
+				mem_size
+			);
+
+			return DBLL_OK;
+		}
+
+		memcpy(
+			&mem[mem_index],
+			&state->file.mem[page_index],
+			max_page_size
+		);
+
+		offset = 0;
+		mem_index += max_page_size + offset;
+	}
+
+	return DBLL_OK;
+}
+
 int dbll_state_valid(dbll_state_t *state) {
 	return (
 		DBLL_VALID(state != NULL) &&
