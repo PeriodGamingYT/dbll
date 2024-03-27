@@ -1,5 +1,10 @@
 #include <test.h>
 
+int test_fail(int line) {
+	printf("test failed at line %d!\n", line);
+	return TEST_FAIL;
+}
+
 int test_funcs(const test_func_t *funcs, int size) {
 	if(funcs == NULL || size < 0) {
 		return TEST_FAIL;

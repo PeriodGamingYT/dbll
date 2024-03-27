@@ -149,7 +149,7 @@ static const uint8_t file_boilerplate[] = {
 	'd', 'b', 'l', 'l', 
 	4, 
 	4, 
-	0, 0, 0, 1,
+	0, 0, 0, 0,
 
 	// empty root list
 	0, 0, 0, 0, 
@@ -269,15 +269,22 @@ int dbll_header_load(dbll_header_t *header, dbll_file_t *file) {
 	memcpy(header->magic, &file->mem[0], DBLL_MAGIC_SIZE);
 	header->ptr_size = file->mem[DBLL_MAGIC_SIZE];
 	header->data_size = file->mem[DBLL_MAGIC_SIZE + 1];
-	memcpy(
-		&header->empty_slot_ptr, 
-		&file->mem[DBLL_MAGIC_SIZE + 2],
-		header->ptr_size
-	);
+
+	// done manually and not with memcpy in order to enforce endianness
+	int index = DBLL_MAGIC_SIZE + 2 + header->ptr_size;
+	header->empty_slot_ptr = 0;
+	for(int i = 0; i < header->ptr_size && index >= 0; i++) {
+		header->empty_slot_ptr |= (
+			(file->mem[index] << (i * 8)) &
+			(0xff << (i * 8))
+		);
+
+		index--;
+	}
 
 	// 3 because that's how many pointers are in dbll_list_t
 	// and empty_slot_size
-	header->header_size = DBLL_MAGIC_SIZE + 1 + header->ptr_size;
+	header->header_size = DBLL_MAGIC_SIZE + 2 + header->ptr_size;
 	header->list_size = (header->ptr_size * 3) + header->data_size;
 	header->empty_slot_size = (header->ptr_size * 3) + 1;
 	header->data_slot_size = header->list_size - header->ptr_size;
@@ -309,7 +316,22 @@ int dbll_header_write(
 		return DBLL_ERR;
 	}
 
-	
+	// calculated in base one, but we need to go over
+	// one anyway so we get that addition for free.
+	// two for the two sizes in the head, one
+	// size for pointers, the other to describe the
+	// size of data sizes
+	int index = DBLL_MAGIC_SIZE + 2;
+	if(
+		dbll_ptr_index_copy(
+			state,
+			header->empty_slot_ptr,
+			index
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
 	return DBLL_OK;
 }
 
@@ -336,40 +358,40 @@ int dbll_list_load(
 		return DBLL_ERR;
 	}
 
-	int list_file_index = dbll_ptr_to_index(state, ptr);
-	if(list_file_index < 0) {
+	int index = dbll_ptr_to_index(state, ptr);
+	if(index == -1) {
 		return DBLL_ERR;
 	}
 	
 	int ptr_size = state->header.ptr_size;
 	if(
-		dbll_ptr_index_copy(
+		dbll_index_ptr_copy(
 			state, 
-			list->head_ptr,
-			list_file_index 
+			index,
+			&list->head_ptr
 		) < 0 ||
 		
-		dbll_ptr_index_copy(
+		dbll_index_ptr_copy(
 			state, 
-			list->tail_ptr,
-			list_file_index + ptr_size
+			index + ptr_size,
+			&list->tail_ptr
 		) < 0 ||
 		
-		dbll_ptr_index_copy(
+		dbll_index_ptr_copy(
 			state, 
-			list->data_ptr,
-			list_file_index + (ptr_size * 2)
+			index + (ptr_size * 2),
+			&list->data_ptr
+		) < 0 ||
+
+		dbll_index_size_copy(
+			state,
+			index + (ptr_size * 3),
+			&list->data_size
 		) < 0
 	) {
 		dbll_list_unload(list);
 		return DBLL_ERR;
 	}
-
-	memcpy(
-		(char *)(&list->data_size),
-		&state->file.mem[list_file_index + (ptr_size * 3)],
-		state->header.data_size
-	);
 
 	list->this_ptr = ptr;
 	return DBLL_OK;
@@ -565,8 +587,8 @@ int dbll_list_write(
 	int index = dbll_ptr_to_index(state, list->this_ptr);
 	int ptr_size = state->header.ptr_size;
 	if(
-		index < 0 ||
-		ptr_size < 0 ||
+		index == -1 ||
+		ptr_size <= 0 ||
 		dbll_ptr_index_copy(
 			state,
 			index,
@@ -660,29 +682,27 @@ int dbll_empty_slot_load(
 		return DBLL_ERR;
 	}
 
-	int list_file_index = dbll_ptr_to_index(state, list_ptr);
-	if(list_file_index < 0) {
-		return DBLL_ERR;
-	}
-
+	int index = dbll_ptr_to_index(state, list_ptr);
 	int ptr_size = state->header.ptr_size;
 	if(
-		dbll_ptr_index_copy(
+		index == -1 ||
+		ptr_size <= 0 ||
+		dbll_index_ptr_copy(
 			state, 
-			empty_slot->prev_ptr,
-			list_file_index
+			index,
+			&empty_slot->prev_ptr
 		) < 0 ||
 
-		dbll_ptr_index_copy(
+		dbll_index_ptr_copy(
 			state, 
-			empty_slot->next_ptr,
-			list_file_index + ptr_size
+			index + ptr_size,
+			&empty_slot->next_ptr
 		) < 0 ||
 
-		dbll_ptr_index_copy(
+		dbll_index_ptr_copy(
 			state, 
-			empty_slot->this_ptr,
-			list_file_index + (ptr_size * 2)
+			index + (ptr_size * 2),
+			&empty_slot->this_ptr
 		) < 0
 	) {
 		return DBLL_ERR;
@@ -716,24 +736,24 @@ int dbll_empty_slot_write(
 	int index = dbll_ptr_to_index(state, slot->this_ptr);
 	int ptr_size = state->header.ptr_size;
 	if(
-		index < 0 ||
-		ptr_size < 0 ||
+		index == -1 ||
+		ptr_size <= 0 ||
 		dbll_ptr_index_copy(
 			state,
-			index,
-			slot->this_ptr
+			slot->this_ptr,
+			index
 		) < 0 ||
 
 		dbll_ptr_index_copy(
 			state,
-			index + ptr_size,
-			slot->prev_ptr
+			slot->prev_ptr,
+			index + ptr_size
 		) < 0 ||
 
 		dbll_ptr_index_copy(
 			state,
-			index + (ptr_size * 2),
-			slot->next_ptr
+			slot->next_ptr,
+			index + (ptr_size * 2)
 		) < 0
 	) {
 		return DBLL_ERR;
@@ -818,8 +838,12 @@ int dbll_data_slot_valid(dbll_data_slot_t *slot) {
 	return (
 		DBLL_VALID(slot != NULL) &&
 		DBLL_VALID(slot->data_index >= 0) &&
-		DBLL_VALID(slot->this_ptr != DBLL_NULL) &&
-		DBLL_VALID(slot->next_ptr != slot->this_ptr)
+		DBLL_VALID(slot->this_ptr != DBLL_NULL) && DBLL_VALID(
+			slot->next_ptr != slot->this_ptr || (
+				slot->next_ptr == DBLL_NULL &&
+				slot->this_ptr == DBLL_NULL
+			)
+		)
 	);
 }
 
@@ -833,7 +857,10 @@ int dbll_data_slot_load(
 	}
 
 	int index = dbll_ptr_to_index(state, ptr);
+	int ptr_size = state->header.ptr_size;
 	if(
+		index == -1 ||
+		ptr_size <= 0 ||
 		dbll_index_ptr_copy(
 			state, 
 			index, 
@@ -1070,18 +1097,17 @@ int dbll_data_slot_alloc(
 			}
 		}
 
-		if(current_slot == &temp_slot) {
+		if(i != 0) {
 			memcpy(
 				&prev_temp_slot,
 				current_slot,
 				sizeof(dbll_data_slot_t)
 			);
-			
-			prev_slot = &prev_temp_slot;
-			continue;
 		}
 
-		prev_slot = current_slot;
+		prev_slot = i == 0
+			? slot
+			: &prev_temp_slot;
 	}
 	
 	return DBLL_OK;
@@ -1493,17 +1519,26 @@ dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 		return empty_slot;
 	}
 
-	int grow_index = state->file.size - 1;
 	if(
 		dbll_file_resize(
 			&state->file, 
-			state->header.header_size
+			state->header.list_size
 		) < 0
 	) {
 		return DBLL_NULL_ERR;
 	}
 
-	return dbll_index_to_ptr(state, grow_index);
+	int total_size = 0;
+	if(
+		dbll_state_total_size(
+			state,
+			&total_size
+		) < 0
+	) {
+		return DBLL_NULL_ERR;
+	}
+
+	return (dbll_ptr_t)(total_size);
 }
 
 int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
@@ -1533,24 +1568,16 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 	}
 
 	state->last_empty = slot;
-
-	// calculated in base one, but we need to go over
-	// one anyway so we get that addition for free.
-	// two for the two sizes in the head, one
-	// size for pointers, the other to describe the 
-	// size of data sizes
-	int index = DBLL_MAGIC_SIZE + 2;
+	state->header.empty_slot_ptr = ptr;
 	if(
-		dbll_ptr_index_copy(
-			state, 
-			ptr, 
-			index
+		dbll_header_write(
+			&state->header,
+			state
 		) < 0
 	) {
 		return DBLL_ERR;
 	}
-	
-	state->header.empty_slot_ptr = ptr;
+
 	return DBLL_OK;
 }
 
@@ -1727,11 +1754,50 @@ int dbll_index_ptr_copy(
 		return DBLL_ERR;
 	}
 
-	memcpy(
-		(uint8_t *)(ptr),
-		&state->file.mem[index],
-		state->header.ptr_size
-	);
+	int ptr_size = state->header.ptr_size;
+	*ptr = 0;
+	index += ptr_size - 1;
+
+	// done manually and not with memcpy in order to enforce endianness
+	for(int i = 0; i < ptr_size && index >= 0; i++) {
+		*ptr |= (
+			(state->file.mem[index] << (i * 8)) &
+			(0xff << (i * 8))
+		);
+
+		index--;
+	}
+
+	return DBLL_OK;
+}
+
+int dbll_index_size_copy(
+	dbll_state_t *state,
+	int index,
+	dbll_size_t *size
+) {
+	if(
+		!dbll_state_valid(state) ||
+		index < 0 ||
+		index >= state->file.size ||
+		size == NULL
+	) {
+		return DBLL_ERR;
+	}
+
+	int data_size = state->header.data_size;
+	*size = 0;
+	index += data_size - 1;
+
+	// done manually and not with memcpy in order to enforce endianness
+	for(int i = 0; i < data_size && index >= 0; i++) {
+		*size |= (
+			(state->file.mem[index] << (i * 8)) &
+			(0xff << (i * 8))
+		);
+
+		index--;
+	}
 
 	return DBLL_OK;
 }
@@ -1749,12 +1815,15 @@ int dbll_ptr_index_copy(
 		return DBLL_ERR;
 	}
 
+DBLL_LOG("index is %d", index);
+DBLL_LOG("ptr is %lu", ptr);
+printf("\n");
 	int ptr_size = state->header.ptr_size;
 	index += ptr_size - 1;
 
 	// done manually and not with memcpy in order to enforce endianness
 	for(int i = 0; i < ptr_size && index >= 0; i++) {
-		state->file.mem[index] = (ptr >> (8 * i)) & 0xff;
+		state->file.mem[index] = (ptr >> (i * 8)) & 0xff;
 		index--;
 	}
 	
@@ -1779,7 +1848,7 @@ int dbll_size_index_copy(
 
 	// done manually and not with memcpy in order to enforce endianness
 	for(int i = 0; i < data_size && index >= 0; i++) {
-		state->file.mem[index] = (size >> (8 * i)) & 0xff;
+		state->file.mem[index] = (size >> (i * 8)) & 0xff;
 		index--;
 	}
 
@@ -1795,13 +1864,17 @@ dbll_ptr_t dbll_index_to_ptr(dbll_state_t *state, int index) {
 		return DBLL_NULL_ERR;
 	}
 
+	// convert to one-based indices because 0 is reserved
+	// and that dbll_ptr_t a one-based index system, so
+	// adjust accordingly
+	index++;
 	dbll_ptr_t result = (dbll_ptr_t)(index);
 	result -= state->header.header_size;
-	result /= state->header.list_size - 1;
+	if(result < 0) {
+		return DBLL_NULL_ERR;
+	}
 
-	// increment result by one because 0 is reserved
-	// for DBLL_NULL only
-	result++;
+	result /= state->header.list_size;
 	return result;
 }
 
@@ -1817,9 +1890,8 @@ int dbll_ptr_to_index(dbll_state_t *state, dbll_ptr_t ptr) {
 	// so ptr is subtracted to convert it back to
 	// zero-base in order for conversion to happen
 	ptr--;
-	dbll_header_t *header = &state->header;
-	int offset = header->header_size;
-	int index = offset + (ptr * (header->list_size - 1));
+	int offset = state->header.header_size;
+	int index = offset + (ptr * state->header.list_size);
 	if(index < 0 || index >= state->file.size) {
 		return -1;
 	}

@@ -265,6 +265,12 @@
 		dbll_ptr_t *
 	);
 
+	int dbll_index_size_copy(
+		dbll_state_t *,
+		int,
+		dbll_size_t *
+	);
+
 	int dbll_ptr_index_copy(
 		dbll_state_t *, 
 		dbll_ptr_t,

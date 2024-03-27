@@ -4,6 +4,11 @@
 
 	#define TEST_PASS 0
 	#define TEST_FAIL -1
+
+	// if you are wanting to return a TEST_FAIL,
+	// do TEST_FAIL_ERR instead to print which line
+	// the test failed
+	#define TEST_FAIL_ERR test_fail(__LINE__)
 	#define ARRAY_SIZE(_array) \
 		(sizeof(_array) / sizeof((_array)[0]))
 
@@ -24,5 +29,6 @@
 			#_name \
 		}
 
+	int test_fail(int);
 	int test_funcs(const test_func_t *, int);
 #endif

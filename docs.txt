@@ -197,11 +197,17 @@ like trimming fat off of a piece of steak
 dbll_state_compact will get rid of all empty slots and compact the file
 in
 
-dbll_ptr_index_copy copies the value of a pointer and copies it into a index
-in file memory
-
 dbll_index_ptr_copy copies the value of the file memory at the index given and
 copies it into a pointer
+
+dbll_index_size_copy copies the value of the file memory at the index given and
+copies it into a size
+
+dbll_ptr_index_copy copies the value of a pointer and copies it into an index
+in file memory
+
+dbll_size_index_copy copies the value of a size and copies it into an index
+in file memory
 
 dbll_index_to_ptr converts a file memory index into a pointer
 
