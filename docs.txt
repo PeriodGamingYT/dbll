@@ -93,6 +93,9 @@ data will be initalized to zero, old data will be erased and replaced by empty
 slots. note that this will overwrite cyclic next pointers, specifically at the 
 pointer which first introduces the cycle
 
+dbll_list_write writes its contents into memory, no pointer to itself
+needs to be fed as that is already in the struct
+
 dbll_empty_slot_t is a linked list that fills all empty slots, the end of
 the empty slot list is allocated to the user whenever the need for such arises.
 it holds a pointer to the previous, next, and itself. any pointer can't 
@@ -108,7 +111,7 @@ location in file memory
 
 dbll_empty_slot_unload will set itself to zero
 
-dbll_empty_slot_write will write it's contents to memory, note that it does
+dbll_empty_slot_write will write its contents to memory, note that it does
 not need a pointer to where as it already has a pointer to itself (this_ptr).
 
 dbll_empty_slot_clip will clip off an empty slot, it will write this to 

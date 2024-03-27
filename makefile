@@ -10,25 +10,28 @@ lib-run:
 	gcc -Wall -Ilib/ -o obj/dbll.o -c lib/dbll.c
 	rm -f lib/debug.h
 
-lib-run-debug:
+lib-debug-run:
 	make clean
 	rm -f lib/debug.h
 	touch lib/debug.h
 	echo '#define DBLL_DEBUG' > lib/debug.h
 	gcc \
 		-Wall \
+		-g \
 		-Ilib/ -o obj/dbll.o -c lib/dbll.c
 
 	rm -f lib/debug.h
 
 test-run: 
-	make lib-run-debug
+	make lib-debug-run
 	gcc \
 		-Wall \
+		-g \
 		-Ilib/ -Itest/ -o obj/test.o -c test/test.c
 
 	gcc \
 		-Wall \
+		-g \
 		-Ilib/ -Itest/ -o obj/test-main \
 		obj/dbll.o obj/test.o test/main.c
 

@@ -104,7 +104,12 @@
 		struct dbll_state_s *,
 		int
 	);
-	
+
+	int dbll_list_write(
+		dbll_list_t *,
+		struct dbll_state_s *
+	);
+
 	typedef struct {
 
 		// to dbll_list_t
@@ -254,16 +259,22 @@
 
 	int dbll_state_trim(dbll_state_t *);
 	int dbll_state_compact(dbll_state_t *);
+	int dbll_index_ptr_copy(
+		dbll_state_t *,
+		int,
+		dbll_ptr_t *
+	);
+
 	int dbll_ptr_index_copy(
 		dbll_state_t *, 
 		dbll_ptr_t,
 		int
 	);
 
-	int dbll_index_ptr_copy(
+	int dbll_size_index_copy(
 		dbll_state_t *,
-		int,
-		dbll_ptr_t *
+		dbll_size_t,
+		int
 	);
 	
 	dbll_ptr_t dbll_index_to_ptr(dbll_state_t *, int);
