@@ -1,6 +1,6 @@
 #include <test.h>
 
-int test_funcs(const test_func_f *funcs, int size) {
+int test_funcs(const test_func_t *funcs, int size) {
 	if(funcs == NULL || size < 0) {
 		return TEST_FAIL;
 	}
@@ -10,14 +10,14 @@ int test_funcs(const test_func_f *funcs, int size) {
 	setvbuf(stderr, NULL, _IONBF, 0);
 	int result = TEST_PASS;
 	for(int i = 0; i < size; i++) {
-		int current_test = funcs[i]();
+		int current_test = funcs[i].test();
 		printf(
-			"%s test %d!\n", 
+			"%s test \"%s\"!\n",
 			current_test == TEST_FAIL 
 				? "failed" 
 				: "passed",
 
-			i
+			funcs[i].name
 		);
 
 		if(current_test == TEST_FAIL) {

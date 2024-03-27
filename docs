@@ -45,7 +45,7 @@ properties to zero
 
 dbll_file_make will make a file, only if it doesn't exist
 
-dbll_file_change_size will change the size of the file, and adjust memory map
+dbll_file_resize will change the size of the file, and adjust memory map
 of the file accordingly. note that the size changes the file size in bytes, not
 blocks, so account for that
 
@@ -136,6 +136,9 @@ all
 
 dbll_data_slot_page will return a file index from a given page index, which is
 a int
+
+dbll_data_slot_resize will resize the amount of data in a data slot, gets rid of
+cyclic parts of pointers so they need to be setup again if you do this
 
 dbll_data_slot_alloc will append additional data slots up to given size
 

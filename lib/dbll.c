@@ -191,7 +191,7 @@ int dbll_file_make(dbll_file_t *file, const char *path) {
 	return dbll_file_load(file, path);
 }
 
-int dbll_file_change_size(dbll_file_t *file, size_t size) {
+int dbll_file_resize(dbll_file_t *file, int size) {
 	if(
 		!dbll_file_valid(file) ||
 		file->size + size < 0
@@ -829,6 +829,60 @@ int dbll_data_slot_page(
 	return fetch_slot.data_index + page_offset;
 }
 
+int dbll_data_slot_resize(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int size
+) {
+	if(
+		!dbll_data_slot_valid(slot) ||
+		!dbll_state_valid(state)
+	) {
+		return DBLL_ERR;
+	}
+
+	if(size == 0) {
+
+		// nothing to allocate but shouldn't error
+		return DBLL_OK;
+	}
+
+	if(size < 0) {
+		return dbll_data_slot_cut_end(
+			slot,
+			state,
+			-size
+		);
+	}
+
+	dbll_ptr_t last_ptr = dbll_data_slot_last(
+		slot,
+		state,
+		NULL
+	);
+
+	if(last_ptr == DBLL_NULL) {
+		return DBLL_ERR;
+	}
+
+	dbll_data_slot_t last_slot = { 0 };
+	if(
+		dbll_data_slot_load(
+			&last_slot,
+			state,
+			last_ptr
+		) < 0
+	) {
+		return DBLL_ERR;
+	}
+
+	return dbll_data_slot_alloc(
+		&last_slot,
+		state,
+		size
+	);
+}
+
 int dbll_data_slot_alloc(
 	dbll_data_slot_t *slot,
 	dbll_state_t *state,
@@ -899,7 +953,11 @@ int dbll_data_slot_write(
 		return DBLL_ERR;
 	}
 
-	int index = dbll_ptr_to_index(slot->this_ptr);
+	int index = dbll_ptr_to_index(
+		state,
+		slot->this_ptr
+	);
+
 	if(index == -1) {
 		return DBLL_ERR;
 	}
@@ -907,7 +965,7 @@ int dbll_data_slot_write(
 	if(
 		dbll_ptr_index_copy(
 			state,
-			slot->next_ptr
+			slot->next_ptr,
 			index
 		) < 0
 	) {
@@ -970,7 +1028,7 @@ static int data_slot_cut_end_inner(
 	}
 	
 	if(current_size == (*size) - cut_size) {
-		return data_slot_free(&current_slot, state);
+		return dbll_data_slot_free(&current_slot, state);
 	}
 
 	return DBLL_OK;
@@ -1268,7 +1326,7 @@ dbll_ptr_t dbll_state_alloc(dbll_state_t *state) {
 
 	int grow_index = state->file.size - 1;
 	if(
-		dbll_file_change_size(
+		dbll_file_resize(
 			&state->file, 
 			state->header.header_size
 		) < 0
@@ -1329,7 +1387,7 @@ int dbll_state_mark_free(dbll_state_t *state, dbll_ptr_t ptr) {
 
 int dbll_state_total_size(
 	dbll_state_t *state,
-	dbll_ptr_t *size
+	int *size
 ) {
 	if(
 		!dbll_state_valid(state) ||
@@ -1351,7 +1409,7 @@ int dbll_state_trim(dbll_state_t *state) {
 		return DBLL_ERR;
 	}
 
-	dbll_ptr_t current_ptr = 0;
+	int current_ptr = 0;
 	if(
 		dbll_state_total_size(
 			state,
@@ -1362,6 +1420,7 @@ int dbll_state_trim(dbll_state_t *state) {
 	}
 
 	int trim_size = 0;
+	dbll_empty_slot_t slot = { 0 };
 
 	// total pointer/block size of file is computed in one-based indices as all
 	// sizes are, but not zero, this operation converts it to
@@ -1391,11 +1450,10 @@ int dbll_state_trim(dbll_state_t *state) {
 
 		trim_size++;
 		current_ptr--;
-		dbll_empty_slot_t slot = { 0 };
 	}
 
 	if(trim_size > 0) {
-		return dbll_file_change_size(
+		return dbll_file_resize(
 			&state->file,
 			-(trim_size * state->header.list_size)
 		);
@@ -1420,7 +1478,7 @@ int dbll_state_compact(dbll_state_t *state) {
 	}
 
 	int decrease_size = 0;
-	dbll_ptr_t current_empty_ptr = state->last_empty;
+	dbll_ptr_t current_empty_ptr = state->last_empty.this_ptr;
 	while(
 		current_empty_ptr != DBLL_NULL &&
 		dbll_empty_slot_valid_ptr(
@@ -1454,8 +1512,8 @@ int dbll_state_compact(dbll_state_t *state) {
 			}
 
 			memcpy(
-				&state->file.mem[&past_index],
-				&state->file.mem[&current_index],
+				&state->file.mem[past_index],
+				&state->file.mem[current_index],
 				state->header.list_size
 			);
 		}
@@ -1466,7 +1524,7 @@ int dbll_state_compact(dbll_state_t *state) {
 	}
 
 	if(
-		dbll_file_change_size(
+		dbll_file_resize(
 			&state->file,
 			-(
 				decrease_size *

@@ -74,7 +74,7 @@ int test_data_write() {
 	if(dbll_state_make_replace(&state, "db/test-data-write.dbll") < 0) {
 		return TEST_FAIL;
 	}
-		if(dbll_list_data_resize(&state->root_list, &state, 3) < 0) {
+		if(dbll_list_data_resize(&state.root_list, &state, 3) < 0) {
 			dbll_state_unload(&state);
 			return TEST_FAIL;
 		}
@@ -84,7 +84,7 @@ int test_data_write() {
 			dbll_data_slot_load(
 				&slot,
 				&state,
-				state->root_list.data_ptr
+				state.root_list.data_ptr
 			) < 0
 		) {
 			dbll_state_unload(&state);
@@ -97,7 +97,7 @@ int test_data_write() {
 				&slot,
 				&state,
 				0,
-				data, 
+				(uint8_t *)(data),
 				ARRAY_SIZE(data)
 			) < 0
 		) {
@@ -108,15 +108,15 @@ int test_data_write() {
 		return TEST_FAIL;
 	}
 
-	return TEST_OK;
+	return TEST_PASS;
 }
 
-const test_func_f dbll_test_funcs[] = {
-	test_load_unload,
-	test_make_replace,
-	test_alloc,
-	test_mark_free,
-	test_data_write
+const test_func_t dbll_test_funcs[] = {
+	TEST_FUNC(test_load_unload),
+	TEST_FUNC(test_make_replace),
+	TEST_FUNC(test_alloc),
+	TEST_FUNC(test_mark_free),
+	TEST_FUNC(test_data_write)
 };
 
 int main() {

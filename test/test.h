@@ -8,5 +8,21 @@
 		(sizeof(_array) / sizeof((_array)[0]))
 
 	typedef int (*test_func_f)();
-	int test_funcs(const test_func_f *, int);
+
+	// this wrapper struct is here to give nicer
+	// names to functions
+	typedef struct {
+		test_func_f test;
+		const char *name;
+	} test_func_t;
+
+	// macro is here to generate boilterplate for
+	// test_func_t
+	#define TEST_FUNC(_name) \
+		{ \
+			_name, \
+			#_name \
+		}
+
+	int test_funcs(const test_func_t *, int);
 #endif
