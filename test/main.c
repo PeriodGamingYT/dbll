@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <test.h>
 #include <dbll.h>
 
@@ -90,14 +91,14 @@ int test_data_write() {
 			return TEST_FAIL_ERR;
 		}
 
-		int data[] = { 1, 2, 3, 4 };
+		char data[] = "hello, there!";
 		if(
 			dbll_data_slot_write_mem(
 				&slot,
 				&state,
 				0,
 				(uint8_t *)(data),
-				ARRAY_SIZE(data)
+				sizeof(data)
 			) < 0
 		) {
 			dbll_state_unload(&state);

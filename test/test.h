@@ -1,7 +1,5 @@
 #ifndef TEST_H
 #define TEST_H
-	#include <stdio.h>
-
 	#define TEST_PASS 0
 	#define TEST_FAIL -1
 
@@ -11,6 +9,10 @@
 	#define TEST_FAIL_ERR test_fail(__LINE__)
 	#define ARRAY_SIZE(_array) \
 		(sizeof(_array) / sizeof((_array)[0]))
+
+	#define TEST_LOG(...) \
+		printf("\"" __VA_ARGS__); \
+		printf("\" on line %d\n", __LINE__)
 
 	typedef int (*test_func_f)();
 

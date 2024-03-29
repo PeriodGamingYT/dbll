@@ -222,7 +222,7 @@
 		struct dbll_state_s *,
 		int,
 		uint8_t *,
-		size_t
+		int
 	);
 
 	int dbll_data_slot_read_mem(
@@ -230,7 +230,7 @@
 		struct dbll_state_s *,
 		int,
 		uint8_t *,
-		size_t
+		int
 	);
 	
 	typedef struct dbll_state_s {

@@ -20,7 +20,9 @@
 #define DBLL_LOG(...)
 
 // wrapped in parenthesis because "||" and "&&" need to have
-// explicit order-of-operation
+// explicit order-of-operation. "||" and "&&" are used where
+// DBLL_VALID is used, so DBLL_VALID needs to enforce correct order
+// of operations
 #define DBLL_VALID(...) (__VA_ARGS__)
 #ifdef DBLL_DEBUG
 	static int err_log(int line) {
@@ -591,26 +593,26 @@ int dbll_list_write(
 		ptr_size <= 0 ||
 		dbll_ptr_index_copy(
 			state,
-			index,
-			list->head_ptr
+			list->head_ptr,
+			index
 		) < 0 ||
 
 		dbll_ptr_index_copy(
 			state,
-			index + ptr_size,
-			list->tail_ptr
+			list->tail_ptr,
+			index + ptr_size
 		) < 0 ||
 
 		dbll_ptr_index_copy(
 			state,
-			index + (ptr_size * 2),
-			list->data_ptr
+			list->data_ptr,
+			index + (ptr_size * 2)
 		) < 0 ||
 
 		dbll_size_index_copy(
 			state,
-			index + (ptr_size * 3),
-			list->data_size
+			list->data_size,
+			index + (ptr_size * 3)
 		) < 0
 	) {
 		return DBLL_ERR;
@@ -1282,12 +1284,13 @@ dbll_ptr_t dbll_data_slot_last(
 	return slot->this_ptr;
 }
 
-int dbll_data_slot_write_mem(
+static int data_slot_write_read(
 	dbll_data_slot_t *slot,
 	dbll_state_t *state,
 	int offset,
 	uint8_t *mem,
-	size_t mem_size
+	int mem_size,
+	int is_write
 ) {
 	if(
 		!dbll_data_slot_valid(slot) ||
@@ -1300,33 +1303,74 @@ int dbll_data_slot_write_mem(
 	}
 
 	int page_size = state->header.data_slot_size;
-	int mem_index = 0;
-	while(mem_index < mem_size) {
-		int max_page_size = page_size - offset;
-		int page_index = dbll_data_slot_page(
-			slot,
-			state,
-			mem_index
-		);
-
-		if(max_page_size > mem_size - mem_index) {
-			memcpy(
-				&state->file.mem[page_index],
-				&mem[mem_index],
-				mem_size
-			);
-
-			return DBLL_OK;
+	dbll_data_slot_t temp_slot = { 0 };
+	temp_slot = *slot;
+	while(offset > page_size) {
+		if(
+			dbll_data_slot_load(
+				&temp_slot,
+				state,
+				temp_slot.next_ptr
+			) < 0
+		) {
+			return DBLL_ERR;
 		}
 
-		memcpy(
-			&state->file.mem[page_index],
-			&mem[mem_index],
-			max_page_size
-		);
+		offset -= page_size;
+	}
 
-		offset = 0;
-		mem_index += max_page_size + offset;
+	int mem_index = 0;
+	int write_index = offset;
+	while(mem_size >= 0) {
+		if(write_index >= page_size) {
+			write_index = 0;
+			if(
+				dbll_data_slot_load(
+					&temp_slot,
+					state,
+					temp_slot.next_ptr
+				) < 0
+			) {
+				return DBLL_ERR;
+			}
+		}
+
+		if(is_write) {
+			state->file.mem[
+				write_index + temp_slot.data_index
+			] = mem[mem_index];
+		} else {
+			mem[mem_index] = state->file.mem[
+				write_index + temp_slot.data_index
+			];
+		}
+
+		write_index++;
+		mem_index++;
+		mem_size--;
+	}
+
+	return DBLL_OK;
+}
+
+int dbll_data_slot_write_mem(
+	dbll_data_slot_t *slot,
+	dbll_state_t *state,
+	int offset,
+	uint8_t *mem,
+	int mem_size
+) {
+	if(
+		data_slot_write_read(
+			slot,
+			state,
+			offset,
+			mem,
+			mem_size,
+			1
+		) < 0
+	) {
+		return DBLL_ERR;
 	}
 
 	return DBLL_OK;
@@ -1337,46 +1381,19 @@ int dbll_data_slot_read_mem(
 	dbll_state_t *state,
 	int offset,
 	uint8_t *mem,
-	size_t mem_size
+	int mem_size
 ) {
 	if(
-		!dbll_data_slot_valid(slot) ||
-		!dbll_state_valid(state) ||
-		offset < 0 ||
-		mem == NULL ||
-		mem_size < 0
-	) {
-		return DBLL_ERR;
-	}
-
-	int page_size = state->header.data_slot_size;
-	int mem_index = 0;
-	while(mem_index < mem_size) {
-		int max_page_size = page_size - offset;
-		int page_index = dbll_data_slot_page(
+		data_slot_write_read(
 			slot,
 			state,
-			mem_index
-		);
-
-		if(max_page_size > mem_size - mem_index) {
-			memcpy(
-				&mem[mem_index],
-				&state->file.mem[page_index],
-				mem_size
-			);
-
-			return DBLL_OK;
-		}
-
-		memcpy(
-			&mem[mem_index],
-			&state->file.mem[page_index],
-			max_page_size
-		);
-
-		offset = 0;
-		mem_index += max_page_size + offset;
+			offset,
+			mem,
+			mem_size,
+			0
+		) < 0
+	) {
+		return DBLL_ERR;
 	}
 
 	return DBLL_OK;
@@ -1815,9 +1832,6 @@ int dbll_ptr_index_copy(
 		return DBLL_ERR;
 	}
 
-DBLL_LOG("index is %d", index);
-DBLL_LOG("ptr is %lu", ptr);
-printf("\n");
 	int ptr_size = state->header.ptr_size;
 	index += ptr_size - 1;
 

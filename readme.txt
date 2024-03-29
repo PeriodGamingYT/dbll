@@ -25,3 +25,10 @@ if someones code or idea is not the best for this project, be polite, respectful
 anyone who doesn't respect this will not be allowed onto this project, talking in pull requests, issues, etc. 
 
 if you are a technically competent person in regards to this project, of any race, ethnicity, gender, sexuality, etc. and you believe you can help this project, please do so.
+
+that is if pull requests will happen, as it stands, i have a reasonably good reference
+implementation. if you want to use a high performance version of this library, you won't
+find it here. though if one is made, it will use this implementation as a reference.
+
+for now i am done with this library and have moved on to making new things. i didn't quit,
+however, it's done.

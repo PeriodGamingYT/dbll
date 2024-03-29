@@ -4,6 +4,7 @@ clean:
 	mkdir obj
 
 lib-run:
+	clear
 	make clean
 	rm -f lib/debug.h
 	touch lib/debug.h
@@ -11,6 +12,7 @@ lib-run:
 	rm -f lib/debug.h
 
 lib-debug-run:
+	clear
 	make clean
 	rm -f lib/debug.h
 	touch lib/debug.h
@@ -23,6 +25,7 @@ lib-debug-run:
 	rm -f lib/debug.h
 
 test-run: 
+	clear
 	make lib-debug-run
 	gcc \
 		-Wall \
@@ -35,5 +38,4 @@ test-run:
 		-Ilib/ -Itest/ -o obj/test-main \
 		obj/dbll.o obj/test.o test/main.c
 
-	clear
 	cd test && ../obj/test-main
